@@ -11,7 +11,7 @@ pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
 # ── Database (async SQLAlchemy + SQLite driver) ───────────────────────────────
-sqlalchemy>=2.0.0
+sqlalchemy[asyncio]>=2.0.0
 aiosqlite>=0.19.0
 
 # ── HTTP client (federation + client SDK) ────────────────────────────────────

@@ -6,7 +6,7 @@ services:
     environment:
       NODE_DOMAIN: "node-manufacturer:8000"
       NODE_API_BASE: "http://node-manufacturer:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/daid.db"
+      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
       PRIVATE_KEY_FILE: "/data/node_key.bin"
       API_KEY: "manufacturer-key"
       NODE_ROLE: "manufacturer"
@@ -23,7 +23,7 @@ services:
     environment:
       NODE_DOMAIN: "node-supplier:8000"
       NODE_API_BASE: "http://node-supplier:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/daid.db"
+      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
       PRIVATE_KEY_FILE: "/data/node_key.bin"
       API_KEY: "supplier-key"
       NODE_ROLE: "supplier"
@@ -40,7 +40,7 @@ services:
     environment:
       NODE_DOMAIN: "node-contractor:8000"
       NODE_API_BASE: "http://node-contractor:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/daid.db"
+      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
       PRIVATE_KEY_FILE: "/data/node_key.bin"
       API_KEY: "contractor-key"
       NODE_ROLE: "main_contractor"
@@ -57,7 +57,7 @@ services:
     environment:
       NODE_DOMAIN: "node-owner:8000"
       NODE_API_BASE: "http://node-owner:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/daid.db"
+      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
       PRIVATE_KEY_FILE: "/data/node_key.bin"
       API_KEY: "owner-key"
       NODE_ROLE: "owner"
@@ -74,7 +74,7 @@ services:
     environment:
       NODE_DOMAIN: "node-inspector:8000"
       NODE_API_BASE: "http://node-inspector:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/daid.db"
+      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
       PRIVATE_KEY_FILE: "/data/node_key.bin"
       API_KEY: "inspector-key"
       NODE_ROLE: "inspector"
@@ -91,7 +91,7 @@ services:
     environment:
       NODE_DOMAIN: "node-relay:8000"
       NODE_API_BASE: "http://node-relay:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/daid.db"
+      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
       PRIVATE_KEY_FILE: "/data/node_key.bin"
       API_KEY: "relay-key"
       NODE_ROLE: "relay"

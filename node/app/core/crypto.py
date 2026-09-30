@@ -1,4 +1,4 @@
-"""RFC 8785 / Ed25519 cryptographic operations for DAID v3 nodes."""
+"""RFC 8785 / Ed25519 cryptographic operations for CLIP v3 nodes."""
 
 import base64
 import hashlib
@@ -15,7 +15,7 @@ _BASE58_ALPHABET = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 class NodeKeyManager:
     """
-    Manages an Ed25519 signing keypair for a DAID node.
+    Manages an Ed25519 signing keypair for a CLIP node.
 
     Usage:
         km = NodeKeyManager.load_or_create("./node_key.bin")
@@ -109,8 +109,8 @@ class NodeKeyManager:
         os.makedirs(os.path.dirname(os.path.abspath(key_file)), exist_ok=True)
         with open(key_file, "wb") as f:
             f.write(km.private_key_bytes)
-        print(f"[daid] Generated new Ed25519 keypair -> {key_file}")
-        print(f"[daid] Public key: {km.public_key_b64}")
+        print(f"[clip] Generated new Ed25519 keypair -> {key_file}")
+        print(f"[clip] Public key: {km.public_key_b64}")
         return km
 
 

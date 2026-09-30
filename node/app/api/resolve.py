@@ -1,4 +1,4 @@
-"""Bounded, cycle-safe DAID v3 graph resolution."""
+"""Bounded, cycle-safe CLIP v3 graph resolution."""
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..core.guid import parse_daid
+from ..core.guid import parse_clip
 from ..core.models import (
     AssetRecord,
     GraphFailure,
@@ -22,7 +22,7 @@ from ..core.models import (
 from ..db.database import AsyncSessionLocal
 from ..db.orm_models import Asset
 from ..dependencies import valid_api_key
-from ..federation.resolver import resolve_daid
+from ..federation.resolver import resolve_clip
 
 router = APIRouter(prefix="/v3", tags=["resolution"])
 
@@ -31,9 +31,9 @@ class RestrictedRecordError(Exception):
     pass
 
 
-async def _resolve_one(daid: str, db: AsyncSession, allow_restricted: bool) -> ResolveResponse:
-    parsed = parse_daid(daid)
-    row = (await db.execute(select(Asset).where(Asset.id == daid))).scalar_one_or_none()
+async def _resolve_one(clip: str, db: AsyncSession, allow_restricted: bool) -> ResolveResponse:
+    parsed = parse_clip(clip)
+    row = (await db.execute(select(Asset).where(Asset.id == clip))).scalar_one_or_none()
     if row and AssetRecord.model_validate(row.record_json).availability.visibility == "restricted" and not allow_restricted:
         raise RestrictedRecordError("Record access is restricted")
     if row and row.is_authoritative:
@@ -53,7 +53,7 @@ async def _resolve_one(daid: str, db: AsyncSession, allow_restricted: bool) -> R
                 verified_at=_utc(row.verified_at or row.cached_at),
             )
     try:
-        record, endpoint, raw_payload = await resolve_daid(daid, settings.FEDERATION_TIMEOUT)
+        record, endpoint, raw_payload = await resolve_clip(clip, settings.FEDERATION_TIMEOUT)
     except ValueError:
         if row:
             return ResolveResponse(
@@ -125,26 +125,26 @@ async def resolve_graph(
         if not frontier:
             break
         reached_depth = depth
-        async def resolve_independently(daid: str) -> ResolveResponse:
+        async def resolve_independently(clip: str) -> ResolveResponse:
             async with AsyncSessionLocal() as session:
-                return await _resolve_one(daid, session, allow_restricted)
+                return await _resolve_one(clip, session, allow_restricted)
 
         outcomes = await asyncio.gather(
-            *[resolve_independently(daid) for daid in sorted(frontier)],
+            *[resolve_independently(clip) for clip in sorted(frontier)],
             return_exceptions=True,
         )
         next_frontier: set[str] = set()
-        for daid, outcome in zip(sorted(frontier), outcomes):
+        for clip, outcome in zip(sorted(frontier), outcomes):
             if not isinstance(outcome, ResolveResponse):
                 restricted = isinstance(outcome, RestrictedRecordError)
                 failures.append(GraphFailure(
-                    daid=daid,
+                    clip=clip,
                     status="restricted" if restricted else "unavailable",
                     reason_code=str(outcome),
                     retryable=not restricted,
                 ))
                 continue
-            nodes[daid] = GraphNode(
+            nodes[clip] = GraphNode(
                 status=outcome.trust_state,
                 record=outcome.record,
                 source=outcome.source,
@@ -173,7 +173,7 @@ async def resolve_graph(
                         continue
                     scheduled.add(target)
                     next_frontier.add(target)
-            for target in outcome.record.subject.linked_daids:
+            for target in outcome.record.subject.linked_clips:
                 references.append(GraphReference(
                     source=outcome.record.id,
                     target=target,
@@ -189,7 +189,7 @@ async def resolve_graph(
         frontier = next_frontier
 
     if request.root not in nodes:
-        if any(failure.daid == request.root and failure.status == "restricted" for failure in failures):
+        if any(failure.clip == request.root and failure.status == "restricted" for failure in failures):
             raise HTTPException(status_code=403, detail="Root record access is restricted")
         reason = failures[0].reason_code if failures else "Root could not be resolved"
         raise HTTPException(status_code=502, detail=reason)
@@ -199,7 +199,7 @@ async def resolve_graph(
         nodes=dict(sorted(nodes.items())),
         edges=sorted(edges, key=lambda item: item.relationship_id),
         references=sorted(references, key=lambda item: (item.relationship_id, item.target)),
-        failures=sorted(failures, key=lambda item: item.daid),
+        failures=sorted(failures, key=lambda item: item.clip),
         limits=GraphLimits(
             requested_depth=request.depth,
             reached_depth=reached_depth,

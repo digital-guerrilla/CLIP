@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..core.guid import parse_daid
+from ..core.guid import parse_clip
 from ..db.database import get_db
 from ..db.orm_models import Asset, ReplicationJob
 from ..dependencies import require_api_key
@@ -23,7 +23,7 @@ async def replication_status(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(require_api_key),
 ) -> dict:
-    record_id = f"daid://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
+    record_id = f"clip://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
     rows = await db.execute(
         select(ReplicationJob).where(ReplicationJob.record_id == record_id).order_by(ReplicationJob.created_at.desc())
     )
@@ -48,7 +48,7 @@ async def retry_replication(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(require_api_key),
 ) -> dict:
-    record_id = f"daid://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
+    record_id = f"clip://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
     row = (await db.execute(select(Asset).where(Asset.id == record_id))).scalar_one_or_none()
     if row is None or not row.is_authoritative:
         raise HTTPException(status_code=404, detail="Authoritative record not found")

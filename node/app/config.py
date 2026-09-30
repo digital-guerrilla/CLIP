@@ -11,19 +11,19 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Node Identity
     # ------------------------------------------------------------------
-    # The domain (and optional port) that identifies this node in DAID URIs.
+    # The domain (and optional port) that identifies this node in CLIP URIs.
     # For production: "products.acme.com"
     # For development: "localhost:8000"
     NODE_DOMAIN: str = "localhost:8000"
 
     # The externally reachable base URL of this node's API.
-    # Advertised in the .well-known/daid/server discovery document.
+    # Advertised in the .well-known/clip/server discovery document.
     NODE_API_BASE: str = "http://localhost:8000"
 
     # ------------------------------------------------------------------
     # Storage
     # ------------------------------------------------------------------
-    DATABASE_URL: str = "sqlite+aiosqlite:///./daid_node.db"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./clip_node.db"
 
     # Path to the persisted Ed25519 private key (32 bytes, binary).
     PRIVATE_KEY_FILE: str = "./node_private_key.bin"

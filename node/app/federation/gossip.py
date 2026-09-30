@@ -1,5 +1,5 @@
 """
-SWIM-inspired gossip protocol for DAID node membership.
+SWIM-inspired gossip protocol for CLIP node membership.
 
 Design
 ------
@@ -23,7 +23,7 @@ Health tracking (SWIM-lite)
 
 Bootstrap
   - GOSSIP_SEEDS is a comma-separated list of peer base URLs.
-  - On startup, the node fetches /.well-known/daid/server from each seed and
+    - On startup, the node fetches /.well-known/clip/server from each seed and
     inserts them into the membership table with generation=0.
 
 Producer-mode nodes (NODE_ROLE=producer) skip gossip entirely — they have no
@@ -46,7 +46,7 @@ from ..db.database import AsyncSessionLocal
 from ..db.orm_models import GossipPeer
 from ..federation.resolver import fetch_well_known
 
-logger = logging.getLogger("daid.gossip")
+logger = logging.getLogger("clip.gossip")
 
 # Module-level heartbeat counter — incremented each gossip round
 _generation: int = 0

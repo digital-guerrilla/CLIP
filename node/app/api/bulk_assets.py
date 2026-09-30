@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..core.crypto import NodeKeyManager
-from ..core.guid import generate_daid, parse_daid
+from ..core.guid import generate_clip, parse_clip
 from ..core.models import AssetCreateRequest, AssetRecord
 from ..db.database import get_db
 from ..db.orm_models import Asset, ImportJob
@@ -34,8 +34,8 @@ class AssetImportRequest(BaseModel):
 class ImportRowResult(BaseModel):
     row: int
     status: str
-    daid: str | None = None
-    linked_daids: list[str] = Field(default_factory=list)
+    clip: str | None = None
+    linked_clips: list[str] = Field(default_factory=list)
     error: str | None = None
 
 
@@ -120,11 +120,11 @@ async def import_assets(
                 results.append(ImportRowResult(
                     row=row_number,
                     status="existing",
-                    daid=existing.id,
-                    linked_daids=request.subject.linked_daids,
+                    clip=existing.id,
+                    linked_clips=request.subject.linked_clips,
                 ))
                 continue
-            record_id = generate_daid(settings.NODE_DOMAIN, key_manager.public_key_multibase)
+            record_id = generate_clip(settings.NODE_DOMAIN, key_manager.public_key_multibase)
             record = _signed_record(
                 record_id=record_id,
                 record_kind=request.record_kind.value,
@@ -141,8 +141,8 @@ async def import_assets(
             results.append(ImportRowResult(
                 row=row_number,
                 status="validated" if body.dry_run else "created",
-                daid=record.id,
-                linked_daids=request.subject.linked_daids,
+                clip=record.id,
+                linked_clips=request.subject.linked_clips,
             ))
             existing_by_key[key] = Asset(
                 id=record.id,
@@ -155,7 +155,7 @@ async def import_assets(
     if not body.dry_run:
         for record in pending:
             document, raw_payload = record_to_storage(record)
-            parsed = parse_daid(record.id)
+            parsed = parse_clip(record.id)
             db.add(Asset(
                 id=record.id,
                 routing_host=parsed.routing_host,

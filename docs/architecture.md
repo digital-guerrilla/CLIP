@@ -1,11 +1,11 @@
-# DAID 3.0 Architecture
+# CLIP 3.0 Architecture
 
 ## Trust Model
 
-A DAID identifies a logical record and binds it to an Ed25519 genesis-key
+A CLIP identifies a logical record and binds it to an Ed25519 genesis-key
 fingerprint. DNS and HTTP locate an authority for the current request; they do
 not establish authority. A resolver accepts a record only when the signed
-descriptor fingerprint matches the DAID, the named verification method has the
+descriptor fingerprint matches the CLIP, the named verification method has the
 required purpose, the record identity matches the request, and its RFC 8785
 canonical proof verifies.
 
@@ -65,7 +65,7 @@ Corrections publish a new record version or superseding assertion.
 
 ## Data Governance
 
-DAID separates control of evidence from aggregation of evidence. This avoids a
+CLIP separates control of evidence from aggregation of evidence. This avoids a
 single asset database becoming an accidental owner of every participant's data.
 
 ```mermaid
@@ -76,9 +76,9 @@ flowchart TB
         CDE[Contractor CDE]
         FM[Owner CAFM]
     end
-    ERP -->|minimal signed type projection| MT[Manufacturer DAID]
-    SCM -->|minimal signed custody projection| SA[Supplier DAID]
-    CDE -->|minimal signed project projection| CA[Contractor DAID]
+    ERP -->|minimal signed type projection| MT[Manufacturer CLIP]
+    SCM -->|minimal signed custody projection| SA[Supplier CLIP]
+    CDE -->|minimal signed project projection| CA[Contractor CLIP]
     FM -->|owner-controlled identity| IR[Instance root]
     MT -->|stakeholder proof + owner acceptance| IR
     SA -->|stakeholder proof + owner acceptance| IR
@@ -91,7 +91,7 @@ flowchart TB
 
 This addresses common governance failures:
 
-| Governance problem | DAID control |
+| Governance problem | CLIP control |
 |---|---|
 | One party silently edits another's facts | Every authority signs only its own record or assertion |
 | DNS or hosting takeover impersonates an issuer | The identifier binds to a key fingerprint |
@@ -134,7 +134,7 @@ production controls still required are tracked in [Roadmap](roadmap.md).
 External systems enter through adapters rather than writing a second record
 format. An owner can import COBie/CSV/JSON component rows through
 `POST /v3/imports/assets`; the importer signs normal owner instance records,
-extracts valid DAIDs from source fields into `subject.linked_daids`, preserves
+extracts valid CLIPs from source fields into `subject.linked_clips`, preserves
 source values and row provenance, and supports idempotent replay. Imported
 links are resolved as `import_reference` graph links and remain distinct from
 authority-signed relationships.
@@ -142,7 +142,7 @@ authority-signed relationships.
 Contractor systems can query an authorized installed-asset projection through
 `GET /v3/records/query` and submit bounded relationship proposal batches through
 `POST /v3/relationships/bulk-proposals`. Installation proposals may carry
-additional signed DAID references to manufacturer, supplier, inspection, or
+additional signed CLIP references to manufacturer, supplier, inspection, or
 evidence records. The owner acceptance workflow remains the authority boundary;
 graph resolution exposes the linked records and their provenance without
 copying another authority's facts into the owner record.

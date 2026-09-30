@@ -1,5 +1,5 @@
 """
-DAID Node — FastAPI application entry point.
+CLIP Node — FastAPI application entry point.
 
 Start with:
   uvicorn app.main:app --reload --port 8000
@@ -47,10 +47,10 @@ async def lifespan(_app: FastAPI):
 
     # Pre-load / create the node keypair so any errors surface at startup
     km = get_key_manager()
-    print(f"[daid] Node ID:    {settings.NODE_DOMAIN}")
-    print(f"[daid] API base:   {settings.NODE_API_BASE}")
-    print(f"[daid] Public key: {km.public_key_b64}")
-    print(f"[daid] Role:       {settings.NODE_ROLE}")
+    print(f"[clip] Node ID:    {settings.NODE_DOMAIN}")
+    print(f"[clip] API base:   {settings.NODE_API_BASE}")
+    print(f"[clip] Public key: {km.public_key_b64}")
+    print(f"[clip] Role:       {settings.NODE_ROLE}")
 
     # Bootstrap gossip membership from seed peers
     await gossip_engine.bootstrap_peers()
@@ -70,12 +70,12 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="DAID Node",
+    title="CLIP Node",
     description=(
         "Distributed Asset Identification Node — "
         "federated, cryptographically-signed product/asset tracking. "
         "This API exposes the authoritative record, federation, proof verification, "
-        "and document workflows used by the DAID v3 protocol."
+        "and document workflows used by the CLIP v3 protocol."
     ),
     version="3.0.0",
     lifespan=lifespan,
@@ -139,7 +139,7 @@ async def offline_kill_switch(request: Request, call_next):
     return await call_next(request)
 
 
-# /.well-known/daid/server  (no prefix)
+# /.well-known/clip/server  (no prefix)
 app.include_router(discovery.router)
 
 app.include_router(assets.router)
@@ -160,10 +160,10 @@ app.include_router(ui_router.router)
 @app.get("/", include_in_schema=False)
 async def root():
     return {
-        "name": "DAID Node",
+        "name": "CLIP Node",
         "node_id": settings.NODE_DOMAIN,
         "protocol_version": "3.0",
         "docs": "/docs",
-        "well_known": "/.well-known/daid/server",
+        "well_known": "/.well-known/clip/server",
         "ui": "/ui",
     }

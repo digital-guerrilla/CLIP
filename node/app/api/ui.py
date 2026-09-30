@@ -1,4 +1,4 @@
-"""DAID v3 operations console."""
+"""CLIP v3 operations console."""
 
 import os
 

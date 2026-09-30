@@ -1,4 +1,4 @@
-# DAID Implementation Roadmap
+# CLIP Implementation Roadmap
 
 ## Codebase Review
 

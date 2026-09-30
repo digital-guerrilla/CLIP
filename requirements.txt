@@ -1,4 +1,4 @@
-# DAID — top-level requirements
+# CLIP — top-level requirements
 # Covers: node server, client SDK, and examples.
 # Install with:  pip install -r requirements.txt
 

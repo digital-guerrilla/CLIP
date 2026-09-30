@@ -1,4 +1,4 @@
-# DAID: A Trusted History for Every Asset
+# CLIP: A Trusted History for Every Asset
 
 ## Elevator Pitch
 
@@ -7,14 +7,14 @@ one company, delivered by another, installed by a contractor, checked by an
 inspector, and eventually maintained by an owner.
 
 Today, that story is usually scattered across emails, spreadsheets, company
-systems, and paper documents. DAID connects the story without forcing all of
+systems, and paper documents. CLIP connects the story without forcing all of
 those companies to put their information into one central database.
 
-Each organisation keeps control of the information it created. DAID links the
+Each organisation keeps control of the information it created. CLIP links the
 relevant pieces together, records who supplied each piece of information, and
 lets an authorised person check whether it can be trusted.
 
-In one sentence: **DAID creates a trusted, shared history of an asset while
+In one sentence: **CLIP creates a trusted, shared history of an asset while
 allowing each organisation to keep control of its own information.**
 
 ## 20-Minute Presentation
@@ -41,7 +41,7 @@ information is genuine, current, complete, and provided by the right person.
 
 ### 2. The simple idea (2 minutes)
 
-DAID creates a connected history for the asset.
+CLIP creates a connected history for the asset.
 
 Think of it as a set of labelled links:
 
@@ -71,13 +71,13 @@ A single database sounds convenient, but it creates new problems:
 - If the central system goes down, everyone may lose access.
 - People may disagree about which copy is the official one.
 
-DAID lets organisations cooperate without giving up control. Each party shares
+CLIP lets organisations cooperate without giving up control. Each party shares
 only the information needed for the asset's history.
 
 For example, a supplier can prove that a piece of equipment was delivered
 without sharing its invoices, prices, or wider commercial records.
 
-### 4. How DAID knows who said what (1 minute)
+### 4. How CLIP knows who said what (1 minute)
 
 Every piece of information carries a tamper-evident seal from the organisation
 that published it.
@@ -89,7 +89,7 @@ That seal helps answer three questions:
 3. Does the organisation still stand behind this version?
 
 The web address used to find the information is not enough on its own. A web
-address can change or be taken over. DAID gives each organisation a lasting
+address can change or be taken over. CLIP gives each organisation a lasting
 identity that is tied to its own signing key.
 
 In everyday terms, the address tells us where to look; the organisation's
@@ -97,7 +97,7 @@ identity tells us why we should believe what we find there.
 
 ### 5. The four kinds of information (1 minute)
 
-DAID keeps the information simple and recognisable:
+CLIP keeps the information simple and recognisable:
 
 - **Product information:** what the manufacturer says about a type of product.
 - **Asset information:** the identity and location of one real physical item.
@@ -131,10 +131,10 @@ maintenance, and ownership changes.
 
 ### 7. What happens when someone looks up an asset? (2 minutes)
 
-An authorised user starts with the asset record and asks DAID to show its
+An authorised user starts with the asset record and asks CLIP to show its
 connected history.
 
-DAID then:
+CLIP then:
 
 - checks each piece of information before trusting it;
 - follows the links to the manufacturer, supplier, contractor, and inspector;
@@ -142,7 +142,7 @@ DAID then:
 - hides information the user is not allowed to see; and
 - clearly reports information that is missing, unavailable, or out of date.
 
-This last point matters. DAID does not pretend that missing information is good
+This last point matters. CLIP does not pretend that missing information is good
 news. It shows where the history is complete and where further investigation is
 needed.
 
@@ -173,12 +173,12 @@ Suggested narration:
 The relay is a helper, not the owner of the information. It can find and check
 the records, but it does not become the source of truth for any organisation.
 
-### 9. What DAID does when things go wrong (2 minutes)
+### 9. What CLIP does when things go wrong (2 minutes)
 
 Real projects are messy. A company may be offline, a document may be private,
 or an old record may be replaced by a newer one.
 
-DAID handles this openly:
+CLIP handles this openly:
 
 - A checked copy can be used temporarily if the original organisation is
   unavailable.
@@ -190,9 +190,9 @@ DAID handles this openly:
 The goal is not to claim that every asset history is always perfect. The goal
 is to make the trustworthy parts clear and the gaps visible.
 
-### 10. What DAID is and is not (2 minutes)
+### 10. What CLIP is and is not (2 minutes)
 
-DAID is a way for existing business systems to publish and connect trusted
+CLIP is a way for existing business systems to publish and connect trusted
 asset information.
 
 It is not intended to replace:
@@ -203,7 +203,7 @@ It is not intended to replace:
 - a facilities-management system; or
 - a document-management system.
 
-Those systems can remain in place. DAID provides a shared, checkable view of
+Those systems can remain in place. CLIP provides a shared, checkable view of
 the important facts that need to travel between organisations.
 
 The current project is a working demonstration and research implementation.
@@ -214,7 +214,7 @@ independent implementations.
 ## Closing Message
 
 When an owner asks, “What do we know about this asset, where did that
-information come from, and can we trust it?”, DAID provides a structured
+information come from, and can we trust it?”, CLIP provides a structured
 answer.
 
 It connects the asset's story without forcing every organisation to hand over

@@ -2,7 +2,7 @@
 Async SQLAlchemy engine and session setup.
 
 Supports any SQLAlchemy-compatible async driver:
-  Development:  sqlite+aiosqlite:///./daid_node.db
+  Development:  sqlite+aiosqlite:///./clip_node.db
   Production:   postgresql+asyncpg://user:pass@host/db
 """
 

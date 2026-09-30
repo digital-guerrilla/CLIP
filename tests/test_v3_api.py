@@ -11,7 +11,7 @@ from node.app import dependencies
 from node.app.api.assets import replication_endpoints
 from node.app.config import settings
 from node.app.core.crypto import NodeKeyManager
-from node.app.core.guid import parse_daid
+from node.app.core.guid import parse_clip
 from node.app.core.models import WellKnownResponse
 from node.app.federation.resolver import _discovery_scheme
 from node.app.main import app
@@ -59,7 +59,7 @@ class V3ApiTest(unittest.TestCase):
             dependencies._key_manager = None
 
             with TestClient(app) as client:
-                descriptor_response = client.get("/.well-known/daid/server")
+                descriptor_response = client.get("/.well-known/clip/server")
                 self.assertEqual(descriptor_response.status_code, 200)
                 descriptor = descriptor_response.json()
 
@@ -77,7 +77,8 @@ class V3ApiTest(unittest.TestCase):
                 )
                 self.assertEqual(create_response.status_code, 201, create_response.text)
                 record = create_response.json()
-                parsed = parse_daid(record["id"])
+                self.assertTrue(record["id"].startswith("clip://"))
+                parsed = parse_clip(record["id"])
 
                 fetch_response = client.get(
                     f"/v3/records/{parsed.authority_key_fingerprint}/{parsed.record_uuid}"
@@ -117,7 +118,7 @@ class V3ApiTest(unittest.TestCase):
                     headers={"x-api-key": "test-key"},
                     json={"record_kind": "instance", "subject": {"name": "Test Pump"}},
                 ).json()
-                parsed = parse_daid(created["id"])
+                parsed = parse_clip(created["id"])
                 content = b"commissioning evidence"
                 upload = client.post(
                     f"/v3/documents/upload/{parsed.authority_key_fingerprint}/{parsed.record_uuid}",
@@ -158,7 +159,7 @@ class V3ApiTest(unittest.TestCase):
                     headers={"x-api-key": "owner-key"},
                     json={"record_kind": "instance", "subject": {"name": "Secure Asset"}},
                 ).json()
-                parsed = parse_daid(created["id"])
+                parsed = parse_clip(created["id"])
                 content = b"confidential inspection certificate" * 100
                 upload = client.post(
                     f"/v3/documents/encrypted-upload/{parsed.authority_key_fingerprint}/{parsed.record_uuid}",
@@ -217,7 +218,7 @@ class V3ApiTest(unittest.TestCase):
                     headers={"x-api-key": "owner-key"},
                     json={"record_kind": "instance", "subject": {"name": "Replica Asset"}},
                 ).json()
-                parsed = parse_daid(created["id"])
+                parsed = parse_clip(created["id"])
                 upload = client.post(
                     f"/v3/documents/encrypted-upload/{parsed.authority_key_fingerprint}/{parsed.record_uuid}",
                     headers={"x-api-key": "owner-key", "x-file-name": "evidence.txt"},
@@ -253,7 +254,7 @@ class V3ApiTest(unittest.TestCase):
                 storage = client.get("/v3/node/storage", headers={"x-api-key": "owner-key"})
                 self.assertEqual(storage.status_code, 200, storage.text)
                 self.assertTrue(storage.json()["opted_in"])
-                descriptor = WellKnownResponse.model_validate(client.get("/.well-known/daid/server").json())
+                descriptor = WellKnownResponse.model_validate(client.get("/.well-known/clip/server").json())
                 with patch(
                     "node.app.federation.resolver.fetch_well_known",
                     new=AsyncMock(return_value=descriptor),
@@ -342,7 +343,7 @@ class V3ApiTest(unittest.TestCase):
                 self.assertEqual(proposal.json()["references"], [manufacturer["id"]])
 
                 descriptor = WellKnownResponse.model_validate(
-                    client.get("/.well-known/daid/server").json()
+                    client.get("/.well-known/clip/server").json()
                 )
                 with patch(
                     "node.app.api.relationships.fetch_well_known",
@@ -382,7 +383,7 @@ class V3ApiTest(unittest.TestCase):
                 )
                 self.assertEqual(illegal.status_code, 422, illegal.text)
 
-    def test_cobie_import_extracts_daid_and_deduplicates_assets(self) -> None:
+    def test_cobie_import_extracts_clip_and_deduplicates_assets(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             settings.DATABASE_URL = f"sqlite+aiosqlite:///{root / 'node.db'}"
@@ -414,14 +415,14 @@ class V3ApiTest(unittest.TestCase):
                 self.assertEqual(imported.status_code, 200, imported.text)
                 result = imported.json()
                 self.assertEqual(result["created"], 1)
-                imported_id = result["rows"][0]["daid"]
+                imported_id = result["rows"][0]["clip"]
 
-                parsed = parse_daid(imported_id)
+                parsed = parse_clip(imported_id)
                 record = client.get(
                     f"/v3/records/{parsed.authority_key_fingerprint}/{parsed.record_uuid}",
                     headers={"x-api-key": "owner-key"},
                 ).json()
-                self.assertEqual(record["subject"]["linked_daids"], [manufacturer["id"]])
+                self.assertEqual(record["subject"]["linked_clips"], [manufacturer["id"]])
 
                 status = client.get(
                     f"/v3/imports/{result['import_id']}",
@@ -475,7 +476,7 @@ class V3ApiTest(unittest.TestCase):
                 })
                 installation = create("assertion", {"name": "Installation"})
                 invalid = (
-                    f"daid://localhost:8993/{parse_daid(installation['id']).authority_key_fingerprint}/"
+                    f"clip://localhost:8993/{parse_clip(installation['id']).authority_key_fingerprint}/"
                     "00000000-0000-4000-8000-000000000001"
                 )
 
@@ -526,7 +527,7 @@ class V3ApiTest(unittest.TestCase):
                     headers={"x-api-key": "owner-key"},
                     json={"record_kind": "instance", "subject": {"name": "Relay Test Asset"}},
                 ).json()
-                parsed = parse_daid(created["id"])
+                parsed = parse_clip(created["id"])
                 path = f"/v3/replication/status/{parsed.authority_key_fingerprint}/{parsed.record_uuid}"
                 status = client.get(path, headers={"x-api-key": "owner-key"})
                 self.assertEqual(status.status_code, 200, status.text)
@@ -562,7 +563,7 @@ class V3ApiTest(unittest.TestCase):
                         },
                     },
                 ).json()
-                parsed = parse_daid(created["id"])
+                parsed = parse_clip(created["id"])
                 path = f"/v3/records/{parsed.authority_key_fingerprint}/{parsed.record_uuid}"
 
                 anonymous_catalog = client.get("/v3/records").json()

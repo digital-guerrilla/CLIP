@@ -18,7 +18,7 @@ if (@($graph.nodes.PSObject.Properties.Value | Where-Object { $_.status -ne "ver
 $contractorCatalog = Invoke-RestMethod -Uri "http://127.0.0.1:8103/v3/records?scope=network&limit=500" `
     -Headers @{ "x-api-key"="contractor-key" }
 $inspectorHost = (Invoke-RestMethod -Uri "http://127.0.0.1:8105/v3/node/info").routing_host
-$inspectorId = @($state.records | Where-Object { $_ -like "daid://$inspectorHost/*" })[0]
+$inspectorId = @($state.records | Where-Object { $_ -like "clip://$inspectorHost/*" })[0]
 if (@($contractorCatalog.items | Where-Object { $_.id -eq $state.root -or $_.id -eq $inspectorId }).Count -ne 0) {
     throw "Contractor received restricted owner or inspection data without a grant"
 }
@@ -30,4 +30,4 @@ try {
     if ([int]$_.Exception.Response.StatusCode -ne 403) { throw }
 }
 
-Write-Host "DAID network verified: complete confidential graph and contractor isolation enforced." -ForegroundColor Green
+Write-Host "CLIP network verified: complete confidential graph and contractor isolation enforced." -ForegroundColor Green

@@ -1,4 +1,4 @@
-"""Verified DAID v3 record replication endpoint."""
+"""Verified CLIP v3 record replication endpoint."""
 
 import json
 from datetime import datetime, timezone
@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..core.crypto import NodeKeyManager
-from ..core.guid import parse_daid
+from ..core.guid import parse_clip
 from ..core.models import AssetRecord
 from ..db.database import get_db
 from ..db.orm_models import Asset
@@ -23,7 +23,7 @@ async def receive_sync(request: Request, db: AsyncSession = Depends(get_db)) -> 
     raw_payload = await request.body()
     try:
         record = AssetRecord.model_validate(json.loads(raw_payload))
-        parsed = parse_daid(record.id)
+        parsed = parse_clip(record.id)
         descriptor = await fetch_well_known(parsed.routing_host, settings.FEDERATION_TIMEOUT)
         methods = {item.id: item for item in descriptor.verification_methods}
         method = methods.get(record.proof.verification_method)

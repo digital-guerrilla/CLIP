@@ -1,10 +1,10 @@
 {
   "records": [
-    "daid://127.0.0.1:8101/z6MkvZQPNbXTfMqcqnuvpS56HmrSMuFkxFV3prBkwtLw3Dpa/9119dee4-d43f-48f7-bc6f-beeec0b93d8c",
-    "daid://127.0.0.1:8102/z6MkrhXXfBQJomJM5maqmRBSQo13Hkfv32Jy7u6Sv3JZdFA6/df286c35-3564-4b96-a31e-8a7622ef5b5a",
-    "daid://127.0.0.1:8103/z6MkgDfRMPqT9yNoSX51KeaA7zgmijUy4ve7ntTXMVx2Y6fn/ed779ff0-2e32-46c9-ba86-c67eddbdc153",
-    "daid://127.0.0.1:8105/z6MkfW7JiB4mEfHEQqnHEZaTgbydvyFpNJ4wnPur6fDZXMTc/39d14a66-3d8f-4003-96dc-51d0fd426ef6",
-    "daid://127.0.0.1:8104/z6Mkmzb1utakvSs19n3Vb8rzuqcRg6dzSxVXQevaxcuvNFNW/b85f5c37-ac0b-4cfc-810f-f672b53c35b6"
+    "clip://127.0.0.1:8101/z6MkvZQPNbXTfMqcqnuvpS56HmrSMuFkxFV3prBkwtLw3Dpa/9119dee4-d43f-48f7-bc6f-beeec0b93d8c",
+    "clip://127.0.0.1:8102/z6MkrhXXfBQJomJM5maqmRBSQo13Hkfv32Jy7u6Sv3JZdFA6/df286c35-3564-4b96-a31e-8a7622ef5b5a",
+    "clip://127.0.0.1:8103/z6MkgDfRMPqT9yNoSX51KeaA7zgmijUy4ve7ntTXMVx2Y6fn/ed779ff0-2e32-46c9-ba86-c67eddbdc153",
+    "clip://127.0.0.1:8105/z6MkfW7JiB4mEfHEQqnHEZaTgbydvyFpNJ4wnPur6fDZXMTc/39d14a66-3d8f-4003-96dc-51d0fd426ef6",
+    "clip://127.0.0.1:8104/z6Mkmzb1utakvSs19n3Vb8rzuqcRg6dzSxVXQevaxcuvNFNW/b85f5c37-ac0b-4cfc-810f-f672b53c35b6"
   ],
-  "root": "daid://127.0.0.1:8104/z6Mkmzb1utakvSs19n3Vb8rzuqcRg6dzSxVXQevaxcuvNFNW/b85f5c37-ac0b-4cfc-810f-f672b53c35b6"
+  "root": "clip://127.0.0.1:8104/z6Mkmzb1utakvSs19n3Vb8rzuqcRg6dzSxVXQevaxcuvNFNW/b85f5c37-ac0b-4cfc-810f-f672b53c35b6"
 }

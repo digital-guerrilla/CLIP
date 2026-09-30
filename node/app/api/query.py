@@ -20,7 +20,7 @@ async def query_assets(
     serial_number: str | None = None,
     building: str | None = None,
     ifc_guid: str | None = None,
-    linked_daid: str | None = None,
+    linked_clip: str | None = None,
     record_kind: RecordKind | None = None,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -48,7 +48,7 @@ async def query_assets(
             continue
         if ifc_guid and (site is None or site.ifc_guid != ifc_guid):
             continue
-        if linked_daid and linked_daid not in subject.linked_daids:
+        if linked_clip and linked_clip not in subject.linked_clips:
             continue
         records.append(record)
     return AssetListResponse(

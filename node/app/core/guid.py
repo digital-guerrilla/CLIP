@@ -1,13 +1,13 @@
-"""DAID v3 URI parsing and generation."""
+"""CLIP v3 URI parsing and generation."""
 
 import re
 import uuid
 from dataclasses import dataclass
 
-DAID_SCHEME = "daid"
+CLIP_SCHEME = "clip"
 
-_DAID_RE = re.compile(
-    r"^daid://"
+_CLIP_RE = re.compile(
+    r"^clip://"
     r"([a-zA-Z0-9.-]+(?::\d+)?)"
     r"/(z[1-9A-HJ-NP-Za-km-z]+)"
     r"/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$",
@@ -16,7 +16,7 @@ _DAID_RE = re.compile(
 
 
 @dataclass(frozen=True)
-class ParsedDAID:
+class ParsedCLIP:
     routing_host: str
     authority_key_fingerprint: str
     record_uuid: str
@@ -24,7 +24,7 @@ class ParsedDAID:
     @property
     def full_id(self) -> str:
         return (
-            f"daid://{self.routing_host}/{self.authority_key_fingerprint}/"
+            f"clip://{self.routing_host}/{self.authority_key_fingerprint}/"
             f"{self.record_uuid}"
         )
 
@@ -32,32 +32,32 @@ class ParsedDAID:
         return self.full_id
 
 
-def generate_daid(routing_host: str, authority_key_fingerprint: str) -> str:
-    """Generate a self-certifying DAID v3 URI."""
-    candidate = f"daid://{routing_host}/{authority_key_fingerprint}/{uuid.uuid4()}"
-    return parse_daid(candidate).full_id
+def generate_clip(routing_host: str, authority_key_fingerprint: str) -> str:
+    """Generate a self-certifying CLIP v3 URI."""
+    candidate = f"clip://{routing_host}/{authority_key_fingerprint}/{uuid.uuid4()}"
+    return parse_clip(candidate).full_id
 
 
-def parse_daid(daid: str) -> ParsedDAID:
+def parse_clip(clip: str) -> ParsedCLIP:
     """
-    Parse a DAID URI string into its components.
+    Parse a CLIP URI string into its components.
 
     Raises:
-        ValueError: If the string is not a valid DAID URI.
+        ValueError: If the string is not a valid CLIP URI.
     """
-    match = _DAID_RE.match(daid.strip())
+    match = _CLIP_RE.match(clip.strip())
     if not match:
         raise ValueError(
-            f"Invalid DAID URI: {daid!r}. "
-            "Expected format: daid://{routing-host}/{authority-key-fingerprint}/{uuid4}"
+            f"Invalid CLIP URI: {clip!r}. "
+            "Expected format: clip://{routing-host}/{authority-key-fingerprint}/{uuid4}"
         )
-    return ParsedDAID(
+    return ParsedCLIP(
         routing_host=match.group(1).lower(),
         authority_key_fingerprint=match.group(2),
         record_uuid=match.group(3).lower(),
     )
 
 
-def is_valid_daid(daid: str) -> bool:
-    """Return True if the string is a syntactically valid DAID URI."""
-    return bool(_DAID_RE.match(daid.strip()))
+def is_valid_clip(clip: str) -> bool:
+    """Return True if the string is a syntactically valid CLIP URI."""
+    return bool(_CLIP_RE.match(clip.strip()))

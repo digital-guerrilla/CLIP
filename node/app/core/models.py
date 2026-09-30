@@ -1,4 +1,4 @@
-"""Pydantic models for the DAID v3 wire protocol."""
+"""Pydantic models for the CLIP v3 wire protocol."""
 
 from datetime import datetime, timezone
 from enum import Enum
@@ -6,11 +6,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .guid import is_valid_daid, parse_daid
+from .guid import is_valid_clip, parse_clip
 
 
 SCHEMA_VERSION = "3.0"
-PROOF_TYPE = "DaidJcsEd25519Signature2026"
+PROOF_TYPE = "ClipJcsEd25519Signature2026"
 
 
 class RecordKind(str, Enum):
@@ -81,13 +81,13 @@ class AssetSubject(BaseModel):
     asset_owner: str | None = None
     site: Site | None = None
     documents: list[DocumentRef] = Field(default_factory=list)
-    linked_daids: list[str] = Field(default_factory=list)
+    linked_clips: list[str] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("linked_daids")
+    @field_validator("linked_clips")
     @classmethod
-    def validate_linked_daids(cls, values: list[str]) -> list[str]:
-        return [parse_daid(value).full_id for value in values]
+    def validate_linked_clips(cls, values: list[str]) -> list[str]:
+        return [parse_clip(value).full_id for value in values]
 
 
 class AvailabilityPolicy(BaseModel):
@@ -99,7 +99,7 @@ class AvailabilityPolicy(BaseModel):
 
 
 class Proof(BaseModel):
-    type: Literal["DaidJcsEd25519Signature2026"] = PROOF_TYPE
+    type: Literal["ClipJcsEd25519Signature2026"] = PROOF_TYPE
     verification_method: str = Field(min_length=1)
     created: datetime
     proof_purpose: str = "assertionMethod"
@@ -142,15 +142,15 @@ class AssetRelationship(BaseModel):
 
     @field_validator("source", "target")
     @classmethod
-    def validate_daid(cls, value: str) -> str:
-        if not is_valid_daid(value):
-            raise ValueError(f"Invalid DAID URI: {value!r}")
+    def validate_clip(cls, value: str) -> str:
+        if not is_valid_clip(value):
+            raise ValueError(f"Invalid CLIP URI: {value!r}")
         return value
 
     @field_validator("references")
     @classmethod
     def validate_references(cls, values: list[str]) -> list[str]:
-        return [parse_daid(value).full_id for value in values]
+        return [parse_clip(value).full_id for value in values]
 
 
 class RelationshipProposalRequest(BaseModel):
@@ -169,13 +169,13 @@ class RelationshipProposalRequest(BaseModel):
 
     @field_validator("source", "target")
     @classmethod
-    def validate_daid(cls, value: str) -> str:
-        return parse_daid(value).full_id
+    def validate_clip(cls, value: str) -> str:
+        return parse_clip(value).full_id
 
     @field_validator("references")
     @classmethod
     def validate_references(cls, values: list[str]) -> list[str]:
-        return [parse_daid(value).full_id for value in values]
+        return [parse_clip(value).full_id for value in values]
 
 
 class RelationshipTransitionRequest(BaseModel):
@@ -206,9 +206,9 @@ class AssetRecord(BaseModel):
 
     @model_validator(mode="after")
     def validate_identity_and_edges(self) -> "AssetRecord":
-        parsed = parse_daid(self.id)
+        parsed = parse_clip(self.id)
         if parsed.authority_key_fingerprint != self.authority:
-            raise ValueError("Record authority does not match its DAID fingerprint")
+            raise ValueError("Record authority does not match its CLIP fingerprint")
         if any(edge.source != self.id for edge in self.relationships):
             raise ValueError("Every relationship source must equal the containing record id")
         return self
@@ -296,7 +296,7 @@ class ResolveGraphRequest(BaseModel):
     @field_validator("root")
     @classmethod
     def validate_root(cls, value: str) -> str:
-        return parse_daid(value).full_id
+        return parse_clip(value).full_id
 
 
 class GraphNode(BaseModel):
@@ -315,7 +315,7 @@ class GraphReference(BaseModel):
 
 
 class GraphFailure(BaseModel):
-    daid: str
+    clip: str
     status: Literal[
         "restricted", "not_found", "unavailable", "invalid_signature",
         "authority_mismatch", "unsupported_schema", "revoked",

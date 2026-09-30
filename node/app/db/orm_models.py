@@ -1,4 +1,4 @@
-"""SQLAlchemy persistence for DAID v3 records and peer state."""
+"""SQLAlchemy persistence for CLIP v3 records and peer state."""
 
 from datetime import datetime
 

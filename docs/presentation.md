@@ -1,11 +1,11 @@
-# DAID 3.0: The Evidence Graph for Physical Assets
+# CLIP 3.0: The Evidence Graph for Physical Assets
 
 ## Elevator Pitch
 
-DAID is a federated protocol for identifying physical assets and verifying the
+CLIP is a federated protocol for identifying physical assets and verifying the
 evidence accumulated across their lifecycles. Instead of copying every
 manufacturer, supplier, contractor, and inspector record into one central
-database, DAID gives each authority control of its own signed records. The
+database, CLIP gives each authority control of its own signed records. The
 asset owner maintains the graph root and accepts the relationships that belong
 in the asset's history.
 
@@ -15,7 +15,7 @@ to see. The result is a durable, auditable view of an asset that can survive
 organizational boundaries, changing hosting, and temporary outages without
 pretending that one system owns everybody else's data.
 
-In one sentence: **DAID turns an asset's lifecycle evidence into a verifiable,
+In one sentence: **CLIP turns an asset's lifecycle evidence into a verifiable,
 owner-controlled graph without creating a central registry.**
 
 ## 20-Minute Presentation
@@ -42,7 +42,7 @@ not changed after installation?
 
 ### 2. The idea: a federated evidence graph (2 minutes)
 
-DAID models the asset as a graph rather than a single expanded record.
+CLIP models the asset as a graph rather than a single expanded record.
 
 The owner's **instance record** is the root. It points to independently issued
 records such as:
@@ -64,10 +64,10 @@ protocol. A relay may improve availability, but it is not the source of truth.
 
 ### 3. Identity and trust: location is not authority (3 minutes)
 
-A DAID has this shape:
+A CLIP has this shape:
 
 ```text
-daid://{routing-host}/{authority-key-fingerprint}/{uuid4}
+clip://{routing-host}/{authority-key-fingerprint}/{uuid4}
 ```
 
 The routing host is a starting location. It is not the trust anchor. The
@@ -79,7 +79,7 @@ When a resolver retrieves a record, it checks the trust chain:
 
 1. Discover the authority through its signed descriptor.
 2. Confirm that the descriptor's genesis key matches the fingerprint in the
-   DAID.
+   CLIP.
 3. Confirm that the descriptor is valid for the requested protocol and proof
    purpose.
 4. Canonicalize the record using RFC 8785 JSON Canonicalization Scheme.
@@ -89,9 +89,9 @@ When a resolver retrieves a record, it checks the trust chain:
 This separates stable identity from replaceable infrastructure. Endpoints,
 mirrors, and caches can change while the asset identity remains stable.
 
-### 4. What a DAID record contains (2 minutes)
+### 4. What a CLIP record contains (2 minutes)
 
-DAID 3.0 uses four record kinds:
+CLIP 3.0 uses four record kinds:
 
 - **Type:** a reusable manufacturer definition, such as an AHU-100 product
   type.
@@ -126,7 +126,7 @@ This produces two proofs: the stakeholder's assertion and the owner's
 acceptance. The owner cannot impersonate the supplier, and a write client
 cannot silently add a relationship by editing the root directly.
 
-For a manufacturer relationship, DAID can pin the exact accepted baseline by
+For a manufacturer relationship, CLIP can pin the exact accepted baseline by
 version and canonical SHA-256 digest. A later manufacturer update can be
 published, but it cannot rewrite what was accepted at installation.
 
@@ -183,7 +183,7 @@ the graph without becoming the authority for any participant's claim.
 
 ### 8. Governance and failure behavior (2 minutes)
 
-DAID makes governance rules visible in the protocol:
+CLIP makes governance rules visible in the protocol:
 
 - each authority signs only its own claims;
 - owners accept external claims into their asset graph;
@@ -198,15 +198,15 @@ systems are retired, networks fail, and evidence arrives at different times.
 The graph can remain useful without hiding the parts that could not be
 verified.
 
-### 9. What DAID is, and is not (1 minute)
+### 9. What CLIP is, and is not (1 minute)
 
-DAID is a protocol and a research implementation for self-certifying identity,
+CLIP is a protocol and a research implementation for self-certifying identity,
 signed records, governed relationships, federated discovery, and bounded graph
 resolution.
 
 It is not a blockchain, a universal asset database, or a replacement for an
 ERP, SCM, CDE, CAFM, or document-management system. Those systems remain the
-systems of record. DAID publishes the minimal signed projections and links
+systems of record. CLIP publishes the minimal signed projections and links
 needed for independent verification.
 
 The current repository is presentation-ready, not a production trust service.
@@ -217,7 +217,7 @@ cross-language conformance testing.
 
 ### 10. Closing: the value proposition (2 minutes)
 
-DAID gives an owner a trustworthy answer to a practical question:
+CLIP gives an owner a trustworthy answer to a practical question:
 
 > “What do we know about this asset, who said it, who accepted it, can we
 > verify it, and what is currently unavailable?”

@@ -1,4 +1,4 @@
-"""Small, deterministic COBie/CSV-to-DAID mapping adapter."""
+"""Small, deterministic COBie/CSV-to-CLIP mapping adapter."""
 
 import csv
 import io
@@ -6,10 +6,10 @@ import json
 import re
 from typing import Any
 
-from ..core.guid import parse_daid
+from ..core.guid import parse_clip
 from ..core.models import AssetCreateRequest, AssetSubject, Site
 
-_DAID_PATTERN = re.compile(r"daid://[^\s,;]+")
+_CLIP_PATTERN = re.compile(r"clip://[^\s,;]+")
 _DEFAULT_FIELDS = {
     "name": ("Name", "name", "ComponentName"),
     "manufacturer": ("Manufacturer", "manufacturer"),
@@ -51,7 +51,7 @@ def map_row(
         return None
 
     name = value("name") or value("serial_number") or f"Imported asset row {row_number}"
-    linked_daids = extract_daids(row)
+    linked_clips = extract_clips(row)
     known = {
         "Name", "name", "ComponentName", "Manufacturer", "manufacturer",
         "ModelNumber", "model_number", "TypeName", "SerialNumber", "serial_number",
@@ -74,18 +74,18 @@ def map_row(
                 space=value("space"),
                 ifc_guid=value("ifc_guid"),
             ),
-            linked_daids=linked_daids,
+            linked_clips=linked_clips,
             attributes=attributes,
         ),
     )
 
 
-def extract_daids(row: dict[str, Any]) -> list[str]:
+def extract_clips(row: dict[str, Any]) -> list[str]:
     values: list[str] = []
     for raw in row.values():
-        for candidate in _DAID_PATTERN.findall(str(raw)):
+        for candidate in _CLIP_PATTERN.findall(str(raw)):
             try:
-                normalized = parse_daid(candidate).full_id
+                normalized = parse_clip(candidate).full_id
             except ValueError:
                 continue
             if normalized not in values:

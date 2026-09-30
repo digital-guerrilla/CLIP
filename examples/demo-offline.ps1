@@ -20,7 +20,7 @@ foreach ($port in @($authority.Port, $resolver.Port)) {
 
 function Start-DemoNode($name, $port, $key, $role, $cacheTtl) {
     $command = @"
-`$host.UI.RawUI.WindowTitle = 'DAID offline-demo $name :$port'
+`$host.UI.RawUI.WindowTitle = 'CLIP offline-demo $name :$port'
 Set-Location '$root'
 `$env:NODE_DOMAIN = '127.0.0.1:$port'
 `$env:NODE_API_BASE = 'http://127.0.0.1:$port'

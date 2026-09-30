@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from ..core.models import GossipSyncRequest, GossipSyncResponse, GossipPeerState
 from ..federation import gossip as gossip_engine
 
-logger = logging.getLogger("daid.gossip.api")
+logger = logging.getLogger("clip.gossip.api")
 
 router = APIRouter(prefix="/v3/gossip", tags=["gossip"])
 

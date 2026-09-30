@@ -8,10 +8,10 @@ from pathlib import Path
 
 import httpx
 
-from node.app.core.guid import parse_daid
+from node.app.core.guid import parse_clip
 
 
-@unittest.skipUnless(os.getenv("DAID_INTEGRATION") == "1", "set DAID_INTEGRATION=1")
+@unittest.skipUnless(os.getenv("CLIP_INTEGRATION") == "1", "set CLIP_INTEGRATION=1")
 class NetworkIntegrationTest(unittest.TestCase):
     def test_six_authority_lifecycle_graph(self) -> None:
         roles = ["manufacturer", "supplier", "main_contractor", "owner", "inspector", "relay"]
@@ -63,7 +63,7 @@ class NetworkIntegrationTest(unittest.TestCase):
                 self.assertEqual(baseline["target_integrity"]["mode"], "snapshot")
                 self.assertEqual(len(baseline["target_integrity"]["sha256"]), 64)
 
-                parsed = parse_daid(records["instance"]["id"])
+                parsed = parse_clip(records["instance"]["id"])
                 owner = httpx.get(
                     f"http://localhost:8204/v3/records/{parsed.authority_key_fingerprint}/{parsed.record_uuid}",
                     timeout=5,

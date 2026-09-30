@@ -9,7 +9,7 @@ services:
     environment:
       NODE_DOMAIN: "node-alpha:8000"
       NODE_API_BASE: "http://node-alpha:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/daid.db"
+      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
       PRIVATE_KEY_FILE: "/data/node_key.bin"
       API_KEY: "alpha-key"
       FEDERATION_TIMEOUT: "10"
@@ -32,7 +32,7 @@ services:
     environment:
       NODE_DOMAIN: "node-beta:8000"
       NODE_API_BASE: "http://node-beta:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/daid.db"
+      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
       PRIVATE_KEY_FILE: "/data/node_key.bin"
       API_KEY: "beta-key"
       FEDERATION_TIMEOUT: "10"

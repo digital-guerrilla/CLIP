@@ -27,7 +27,7 @@ foreach ($node in $nodes) {
 
 foreach ($node in $nodes) {
     $command = @"
-`$host.UI.RawUI.WindowTitle = 'DAID $($node.Name) :$($node.Port)'
+`$host.UI.RawUI.WindowTitle = 'CLIP $($node.Name) :$($node.Port)'
 Set-Location '$root'
 `$env:NODE_DOMAIN = '127.0.0.1:$($node.Port)'
 `$env:NODE_API_BASE = 'http://127.0.0.1:$($node.Port)'
@@ -43,6 +43,6 @@ Set-Location '$root'
     Start-Process pwsh -ArgumentList "-NoProfile", "-NoExit", "-Command", $command
 }
 
-Write-Host "Launching six DAID services on ports 8101-8106..." -ForegroundColor Cyan
+Write-Host "Launching six CLIP services on ports 8101-8106..." -ForegroundColor Cyan
 & "$PSScriptRoot\seed-network.ps1"
 Write-Host "Dashboard: http://127.0.0.1:8104/ui" -ForegroundColor Green

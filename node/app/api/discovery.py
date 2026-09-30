@@ -1,4 +1,4 @@
-"""Signed authority descriptor for DAID v3 discovery."""
+"""Signed authority descriptor for CLIP v3 discovery."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -12,14 +12,14 @@ from ..dependencies import get_key_manager
 router = APIRouter(tags=["discovery"])
 
 
-@router.get("/.well-known/daid/server", response_model=WellKnownResponse)
+@router.get("/.well-known/clip/server", response_model=WellKnownResponse)
 async def well_known_server(
     key_manager: NodeKeyManager = Depends(get_key_manager),
 ) -> WellKnownResponse:
     now = datetime.now(timezone.utc).replace(microsecond=0)
     controller = settings.DID_WEB_ID or f"did:web:{settings.NODE_DOMAIN.replace(':', '%3A')}"
     method = VerificationMethod(
-        id=f"{controller}#daid-record-signing",
+        id=f"{controller}#clip-record-signing",
         public_key_multibase=key_manager.public_key_multibase,
         public_key_base64=key_manager.public_key_b64,
         purposes=["record", "relationship-assertion", "relationship-acceptance"],

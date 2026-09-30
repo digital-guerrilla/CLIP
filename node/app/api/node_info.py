@@ -1,4 +1,4 @@
-"""DAID v3 node information endpoint."""
+"""CLIP v3 node information endpoint."""
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel

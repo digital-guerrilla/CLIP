@@ -77,7 +77,7 @@ async def upload_document(
     key_manager: NodeKeyManager = Depends(get_key_manager),
     _: None = Depends(require_api_key),
 ) -> DocumentRef:
-    record_id = f"daid://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
+    record_id = f"clip://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
     row = (await db.execute(select(Asset).where(Asset.id == record_id))).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail=f"Record not found: {record_id}")
@@ -122,7 +122,7 @@ async def upload_encrypted_document(
     key_manager: NodeKeyManager = Depends(get_key_manager),
     _: None = Depends(require_api_key),
 ) -> dict:
-    record_id = f"daid://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
+    record_id = f"clip://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
     row = (await db.execute(select(Asset).where(Asset.id == record_id))).scalar_one_or_none()
     if row is None or not row.is_authoritative or authority != key_manager.public_key_multibase:
         raise HTTPException(status_code=403, detail="This node is not authoritative for the record")

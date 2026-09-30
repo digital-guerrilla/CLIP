@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..core.crypto import NodeKeyManager, canonical_sha256, canonicalize
-from ..core.guid import parse_daid
+from ..core.guid import parse_clip
 from ..core.models import (
     AssetRelationship,
     Proof,
@@ -43,7 +43,7 @@ async def propose_relationship(
     key_manager: NodeKeyManager = Depends(get_key_manager),
     _: None = Depends(require_api_key),
 ) -> AssetRelationship:
-    target = parse_daid(body.target)
+    target = parse_clip(body.target)
     if target.authority_key_fingerprint != key_manager.public_key_multibase:
         raise HTTPException(status_code=403, detail="This node is not authoritative for the target")
     target_row = (await db.execute(select(Asset).where(Asset.id == body.target))).scalar_one_or_none()
@@ -75,7 +75,7 @@ async def propose_relationship(
         references=body.references,
         evidence=body.evidence,
         proofs=[Proof(
-            verification_method=f"{controller}#daid-record-signing",
+            verification_method=f"{controller}#clip-record-signing",
             created=now,
             proof_purpose="relationship-assertion",
             proof_value="unsigned-placeholder",
@@ -135,8 +135,8 @@ async def _accept_one(
     db: AsyncSession,
     key_manager: NodeKeyManager,
 ) -> AssetRelationship:
-    source = parse_daid(proposal.source)
-    target = parse_daid(proposal.target)
+    source = parse_clip(proposal.source)
+    target = parse_clip(proposal.target)
     if source.routing_host.lower() != settings.NODE_DOMAIN.lower():
         raise HTTPException(status_code=403, detail="This node is not the root routing authority")
     if source.authority_key_fingerprint != key_manager.public_key_multibase:
@@ -182,7 +182,7 @@ async def _accept_one(
     })
     accepted_document = accepted.model_dump(mode="json")
     accepted_document["proofs"].append(Proof(
-        verification_method=f"{root.controller}#daid-record-signing",
+        verification_method=f"{root.controller}#clip-record-signing",
         created=datetime.now(timezone.utc),
         proof_purpose="relationship-acceptance",
         proof_value=acceptance_value,

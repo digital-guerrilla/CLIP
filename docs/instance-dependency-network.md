@@ -1,41 +1,41 @@
-# DAID Instance-Based Dependency Network
+# CLIP Instance-Based Dependency Network
 
-Status: normative architecture for DAID protocol 3.0
+Status: normative architecture for CLIP protocol 3.0
 
 Implementations MUST conform to this document's single wire schema, identifier,
 proof, discovery, relationship, and graph-resolution contracts.
 
 ## 1. Executive Decision
 
-DAID v3 represents an asset as a signed,
+CLIP v3 represents an asset as a signed,
 federated dependency graph. A physical asset installed at a site is represented
 by an **instance record** issued by the asset owner's authority. That record is
 the graph root and contains signed relationship assertions pointing to records
 issued by manufacturers, suppliers, contractors, installers, maintainers, and
 other lifecycle participants.
 
-The design preserves DAID's defining properties:
+The design preserves CLIP's defining properties:
 
 - There is no global registry, ledger, mandatory relay, or shared database.
-- Every DAID remains self-routing to an authority controlled by its issuer.
+- Every CLIP remains self-routing to an authority controlled by its issuer.
 - Each authority remains the source of truth for its own records and claims.
 - Records and relationship assertions are independently signed and cacheable.
 - Resolution is on demand, bounded, cycle-safe, and useful during outages.
 - Public, restricted, and private data can coexist without copying confidential
   source records into the owner's root record.
 
-The DAID URI does **not** encode whether a record describes a product type or a
+The CLIP URI does **not** encode whether a record describes a product type or a
 physical instance. It binds a routing hint, a self-certifying genesis authority,
 and an opaque record identifier:
 
 ```text
-daid://{routing-host}/{authority-key-fingerprint}/{uuid4}
+clip://{routing-host}/{authority-key-fingerprint}/{uuid4}
 ```
 
 Example:
 
 ```text
-daid://assets.hospital.example/z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP/018f6f4e-f403-4b17-8b96-9d7ac3482a31
+clip://assets.hospital.example/z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP/018f6f4e-f403-4b17-8b96-9d7ac3482a31
 ```
 
 `routing-host` is only a bootstrap locator and is never a trust anchor. The
@@ -46,7 +46,7 @@ move service to new endpoints or mirrors without changing asset identity.
 
 ## 2. Architectural Principles
 
-1. **Identity is stable; descriptions evolve.** A DAID identifies one logical
+1. **Identity is stable; descriptions evolve.** A CLIP identifies one logical
    subject for its lifetime. Mutable state is expressed through signed,
    monotonic record versions.
 2. **Identity and location are separate.** The self-certifying authority key is
@@ -82,11 +82,11 @@ Protocol v3 introduces a required `schema_version` and `record_kind`:
 An instance SHOULD link to a manufacturer type record with `defines_type`; it
 MUST NOT duplicate the manufacturer's full specification as owner-authored
 truth. An instance's `authority` is the genesis authority-key fingerprint in
-its DAID. `controller` identifies the party currently authorized to publish
+its CLIP. `controller` identifies the party currently authorized to publish
 versions; it is not necessarily the manufacturer, custodian, operator, or
 physical location.
 
-Ownership transfer does not change the DAID. A transfer is an accepted,
+Ownership transfer does not change the CLIP. A transfer is an accepted,
 co-signed `transferred_to` assertion plus a controller delegation signed by the
 old and new controllers. The immutable delegation chain leads back to the
 genesis key. DNS control alone never establishes asset control or legal
@@ -98,7 +98,7 @@ The v3 envelope adds explicit signing metadata and instance semantics:
 
 ```json
 {
-  "id": "daid://assets.hospital.example/z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP/018f6f4e-f403-4b17-8b96-9d7ac3482a31",
+  "id": "clip://assets.hospital.example/z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP/018f6f4e-f403-4b17-8b96-9d7ac3482a31",
   "authority": "z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP",
   "controller": "did:web:assets.hospital.example",
   "schema_version": "3.0",
@@ -124,8 +124,8 @@ The v3 envelope adds explicit signing metadata and instance semantics:
   "updated_at": "2026-09-15T09:30:00+00:00",
   "version": 1,
   "proof": {
-    "type": "DaidJcsEd25519Signature2026",
-    "verification_method": "did:web:assets.hospital.example#daid-signing-2026",
+    "type": "ClipJcsEd25519Signature2026",
+    "verification_method": "did:web:assets.hospital.example#clip-signing-2026",
     "created": "2026-09-15T09:30:00+00:00",
     "proof_value": "base64url-signature"
   }
@@ -139,7 +139,7 @@ produce identical bytes. Floating-point values that cannot round-trip under
 JCS MUST be represented as strings plus an explicit unit.
 
 The bootstrap host serves a signed authority descriptor. A resolver accepts it
-only when its genesis public key hashes to the DAID authority fingerprint and
+only when its genesis public key hashes to the CLIP authority fingerprint and
 its descriptor proof verifies:
 
 ```json
@@ -148,10 +148,10 @@ its descriptor proof verifies:
   "genesis_public_key_multibase": "z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP",
   "protocol_version": "3.0",
   "endpoints": ["https://assets.hospital.example"],
-  "mirrors": ["https://daid-mirror.city.example"],
+  "mirrors": ["https://clip-mirror.city.example"],
   "verification_methods": [
     {
-      "id": "did:web:assets.hospital.example#daid-record-signing-2026",
+      "id": "did:web:assets.hospital.example#clip-record-signing-2026",
       "type": "Ed25519VerificationKey2020",
       "public_key_multibase": "z6Mk...",
       "purposes": ["record", "relationship-acceptance"],
@@ -174,12 +174,12 @@ lifecycle evidence remains verifiable after key rotation.
 ### 3.3 Relationship Semantics
 
 Each root relationship is an immutable assertion embedded in the signed root
-version. It points to an independently resolvable DAID and describes why it is
+version. It points to an independently resolvable CLIP and describes why it is
 linked. A relationship has these identities:
 
 - `relationship_id`: stable UUID for this assertion across root revisions.
-- `source`: the root or parent DAID.
-- `target`: the independently authoritative child DAID.
+- `source`: the root or parent CLIP.
+- `target`: the independently authoritative child CLIP.
 - `role`: the lifecycle participant role.
 - `relation_type`: the graph meaning, independent of the participant role.
 - `asserted_by`: authority making the external claim.
@@ -206,15 +206,15 @@ document. It is the only asset-record wire schema.
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://daid.example/spec/schema/asset-record-v3.json",
-  "title": "DAID Asset Record v3",
+  "$id": "https://clip.example/spec/schema/asset-record-v3.json",
+  "title": "CLIP Asset Record v3",
   "type": "object",
   "required": [
     "id", "authority", "controller", "schema_version", "record_kind", "subject",
     "relationships", "availability", "created_at", "updated_at", "version", "proof"
   ],
   "properties": {
-    "id": { "$ref": "#/$defs/daid" },
+    "id": { "$ref": "#/$defs/clip" },
     "authority": { "type": "string", "minLength": 1 },
     "controller": { "type": "string", "minLength": 1 },
     "schema_version": { "const": "3.0" },
@@ -265,9 +265,9 @@ document. It is the only asset-record wire schema.
     "proof": { "$ref": "#/$defs/proof" }
   },
   "$defs": {
-    "daid": {
+    "clip": {
       "type": "string",
-      "pattern": "^daid://[A-Za-z0-9.-]+(?::[0-9]+)?/z[1-9A-HJ-NP-Za-km-z]+/[0-9a-fA-F-]{36}$"
+      "pattern": "^clip://[A-Za-z0-9.-]+(?::[0-9]+)?/z[1-9A-HJ-NP-Za-km-z]+/[0-9a-fA-F-]{36}$"
     },
     "relationship": {
       "type": "object",
@@ -277,8 +277,8 @@ document. It is the only asset-record wire schema.
       ],
       "properties": {
         "relationship_id": { "type": "string", "format": "uuid" },
-        "source": { "$ref": "#/$defs/daid" },
-        "target": { "$ref": "#/$defs/daid" },
+        "source": { "$ref": "#/$defs/clip" },
+        "target": { "$ref": "#/$defs/clip" },
         "role": {
           "enum": [
             "manufacturer", "supplier", "main_contractor", "installer",
@@ -338,7 +338,7 @@ document. It is the only asset-record wire schema.
       "type": "object",
       "required": ["type", "verification_method", "created", "proof_value"],
       "properties": {
-        "type": { "const": "DaidJcsEd25519Signature2026" },
+        "type": { "const": "ClipJcsEd25519Signature2026" },
         "verification_method": { "type": "string", "minLength": 1 },
         "created": { "type": "string", "format": "date-time" },
         "proof_purpose": { "type": "string" },
@@ -384,24 +384,24 @@ not a globally ordered ledger. Each `assertion` record contains:
 | Field | Requirement |
 |---|---|
 | `event_type` | Controlled term such as `manufactured`, `custody_transferred`, `delivered`, `installed`, `commissioned`, `inspected`, `maintained`, `fault_reported`, `repaired`, `replaced`, or `decommissioned` |
-| `asset` | Root instance DAID that the event concerns |
+| `asset` | Root instance CLIP that the event concerns |
 | `issuer_sequence` | Monotonic sequence scoped to `(issuer, asset)` |
-| `previous_event` | Previous event DAID from the same issuer and asset, or `null` for the first |
-| `causes` | DAIDs of events from any authority that causally precede this event |
+| `previous_event` | Previous event CLIP from the same issuer and asset, or `null` for the first |
+| `causes` | CLIPs of events from any authority that causally precede this event |
 | `effective_at` | When the real-world event occurred |
 | `recorded_at` | When the signed assertion was issued |
-| `supersedes` | Incorrect assertion DAID being corrected, or `null` |
+| `supersedes` | Incorrect assertion CLIP being corrected, or `null` |
 | `claims` | Minimal structured facts asserted by this issuer |
 | `evidence_manifest` | Hash-pinned documents, measurements, images, or certificates |
 
-Signatures authenticate issuer order; hashes and DAID references authenticate
+Signatures authenticate issuer order; hashes and CLIP references authenticate
 causal links. Wall-clock timestamps MUST NOT establish conflict precedence by
 themselves. Two concurrent assertions may both be valid. The owner records
 acceptance, dispute, or rejection as a separate signed event, creating an owner
 sequence without erasing stakeholder history.
 
 Reducers derive current lifecycle state from verified events using deterministic
-rules published by a profile, for example the DAID BIM Operations Profile. A
+rules published by a profile, for example the CLIP BIM Operations Profile. A
 resolver returns both the event set and the reducer/profile identifier so a
 consumer can reproduce the state instead of trusting a server-computed summary.
 
@@ -410,7 +410,7 @@ consumer can reproduce the state instead of trusting a server-computed summary.
 At installation or commissioning, `defines_type` MUST use `snapshot` integrity
 mode and pin the exact manufacturer record version and SHA-256 JCS digest that
 formed the accepted product baseline. On later resolution, the resolver also
-attempts the current version of the same type DAID and reports one of:
+attempts the current version of the same type CLIP and reports one of:
 
 - `unchanged`: current version equals the accepted snapshot.
 - `updated_non_breaking`: manufacturer declares additive guidance or documents.
@@ -446,7 +446,7 @@ policy and authorization context form a structured request:
 
 ```text
 POST /v3/resolve-graph
-{"root":"daid://...","depth":2,"max_nodes":50,"view":"public"}
+{"root":"clip://...","depth":2,"max_nodes":50,"view":"public"}
 ```
 
 The response is a graph envelope rather than a recursively nested object. A
@@ -454,14 +454,14 @@ node/edge table prevents duplication and represents cycles cleanly:
 
 ```json
 {
-  "root": "daid://assets.hospital.example/z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP/018f6f4e-f403-4b17-8b96-9d7ac3482a31",
+  "root": "clip://assets.hospital.example/z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP/018f6f4e-f403-4b17-8b96-9d7ac3482a31",
   "complete": false,
   "nodes": {
-    "daid://assets.hospital.example/z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP/018f6f4e-f403-4b17-8b96-9d7ac3482a31": {
+    "clip://assets.hospital.example/z6MkrJVnaZkeF6oD3BFXYiVQ3mYFZBcP/018f6f4e-f403-4b17-8b96-9d7ac3482a31": {
       "status": "verified_current",
       "record": {}
     },
-    "daid://installer.example/z6MkqR7VnaZkeF6oD3BFXYiVQ3mYFZBc/81cceaa3-c7fb-4d57-9755-75e00f20efde": {
+    "clip://installer.example/z6MkqR7VnaZkeF6oD3BFXYiVQ3mYFZBc/81cceaa3-c7fb-4d57-9755-75e00f20efde": {
       "status": "verified_stale",
       "record": {}
     }
@@ -469,7 +469,7 @@ node/edge table prevents duplication and represents cycles cleanly:
   "edges": [],
   "failures": [
     {
-      "daid": "daid://supplier.example/z6MkxT8WpbA4hG7sN2cQ9rK5vD3eJ6Mf/c135e82b-f1a3-4391-87a2-463f4707ed9c",
+      "clip": "clip://supplier.example/z6MkxT8WpbA4hG7sN2cQ9rK5vD3eJ6Mf/c135e82b-f1a3-4391-87a2-463f4707ed9c",
       "status": "unavailable",
       "reason_code": "authority_unreachable",
       "last_verified_at": null,
@@ -491,13 +491,13 @@ it does not imply that the global graph is known.
 
 ### 4.2 Recursive Resolution Algorithm
 
-1. Parse and normalize the root DAID into `routing_host`, `authority_key_id`,
+1. Parse and normalize the root CLIP into `routing_host`, `authority_key_id`,
   and `record_uuid`. Reject malformed components and unsupported URI schemes.
 2. Look up the exact root and latest signed authority descriptor in the local
   authoritative store or verified cache.
 3. Resolve the authority descriptor from the routing host, known mirrors, and
   configured peers in parallel. Apply DNS/IP SSRF policy before each connection
-  and redirect. Accept only a descriptor whose genesis key derives the DAID
+  and redirect. Accept only a descriptor whose genesis key derives the CLIP
   authority key ID, whose proof verifies, and whose sequence is not a rollback.
 4. Select healthy HTTPS endpoints from the highest valid descriptor sequence.
   Fetch the record with conditional requests, bounded bytes, strict media type,
@@ -512,7 +512,7 @@ it does not imply that the global graph is known.
 8. Extract relationships only from the verified root. Validate that each edge's
    `source` equals the record containing it and verify all required relationship
    proofs before scheduling its target.
-9. Deduplicate targets by normalized DAID. Maintain a visited set to terminate
+9. Deduplicate targets by normalized CLIP. Maintain a visited set to terminate
    cycles. Record each edge independently even when its target was already seen.
 10. Resolve child targets concurrently, with global and per-authority-key
    semaphores. Apply per-request timeout, total deadline, depth, node count,
@@ -550,21 +550,21 @@ class GraphResult:
     truncated: bool = False
 
 
-async def resolve_graph(root_daid: str, policy: ResolvePolicy) -> GraphResult:
-    result = GraphResult(root=root_daid)
-    frontier = {root_daid}
-    scheduled = {root_daid}
+async def resolve_graph(root_clip: str, policy: ResolvePolicy) -> GraphResult:
+    result = GraphResult(root=root_clip)
+    frontier = {root_clip}
+    scheduled = {root_clip}
     request_slots = asyncio.Semaphore(policy.concurrency)
     deadline = asyncio.get_running_loop().time() + policy.total_timeout
 
-    async def guarded_resolve(daid: str) -> ResolveOutcome:
+    async def guarded_resolve(clip: str) -> ResolveOutcome:
         async with request_slots:
             try:
                 async with asyncio.timeout(policy.per_request_timeout):
-                    outcome = await resolve_one_with_fallback(daid, policy)
+                    outcome = await resolve_one_with_fallback(clip, policy)
                 return outcome
             except Exception as exc:
-                return failure_outcome(daid, exc)
+                return failure_outcome(clip, exc)
 
     for depth in range(policy.max_depth + 1):
         if not frontier:
@@ -580,17 +580,17 @@ async def resolve_graph(root_daid: str, policy: ResolvePolicy) -> GraphResult:
         try:
             async with asyncio.timeout(remaining):
                 async with asyncio.TaskGroup() as group:
-                    for daid in sorted(frontier):
-                        tasks[daid] = group.create_task(guarded_resolve(daid))
+                    for clip in sorted(frontier):
+                        tasks[clip] = group.create_task(guarded_resolve(clip))
         except TimeoutError:
             result.truncated = True
             result.failures.extend(deadline_failures(frontier))
             break
 
         next_frontier: set[str] = set()
-        for daid in sorted(tasks):
-            outcome = tasks[daid].result()
-            result.nodes[daid] = outcome.as_graph_node()
+        for clip in sorted(tasks):
+            outcome = tasks[clip].result()
+            result.nodes[clip] = outcome.as_graph_node()
             if outcome.failure:
                 result.failures.append(outcome.failure)
             if not outcome.may_traverse:
@@ -618,7 +618,7 @@ async def resolve_graph(root_daid: str, policy: ResolvePolicy) -> GraphResult:
 
     result.nodes = dict(sorted(result.nodes.items()))
     result.edges.sort(key=lambda item: item["relationship_id"])
-    result.failures.sort(key=lambda item: item["daid"])
+    result.failures.sort(key=lambda item: item["clip"])
     return result
 ```
 
@@ -643,7 +643,7 @@ Use HTTP `200` with `complete=false` and per-node outcomes:
 | `not_found` | Authority authoritatively returned no such record | Preserve edge and report terminal failure |
 | `unavailable` | Discovery, DNS, TLS, timeout, or server failure | Try cache/mirror, then report retryable failure |
 | `invalid_signature` | Payload cannot be authenticated | Do not cache or traverse |
-| `authority_mismatch` | Record identity does not match requested authority/DAID | Do not cache or traverse |
+| `authority_mismatch` | Record identity does not match requested authority/CLIP | Do not cache or traverse |
 | `unsupported_schema` | No mutually supported schema profile | Preserve opaque diagnostic metadata only |
 | `revoked` | Record or relationship has authenticated revocation | Return revocation evidence, do not use as active truth |
 
@@ -664,12 +664,12 @@ existence a prerequisite for building safety records.
 
 A stakeholder does not directly edit another authority's root record:
 
-1. The stakeholder creates an independently authoritative DAID record for its
+1. The stakeholder creates an independently authoritative CLIP record for its
    type definition, custody event, procurement package, or commissioning event.
 2. It constructs a relationship payload linking the root to that record and
    signs it with a purpose-scoped key.
 3. It submits the signed relationship proposal to the root authority.
-4. The root authority validates both DAIDs, schema, signatures, key purposes,
+4. The root authority validates both CLIPs, schema, signatures, key purposes,
    timestamps, replay nonce, and authorization policy.
 5. The owner accepts, rejects, or disputes the proposal. Acceptance adds the
    owner's signature and publishes a new root version containing the assertion.
@@ -704,11 +704,11 @@ a signed revocation, and the root records a new relationship state/version.
 
 ### 5.3 Privacy and Selective Disclosure
 
-DAID is a pointer network, not a mandate to publish entire business records.
+CLIP is a pointer network, not a mandate to publish entire business records.
 Each authority maintains at least two data models:
 
 - **Private source record:** ERP, commercial terms, margins, internal pricing,
-  personal data, and operational notes. It never enters a public DAID payload.
+  personal data, and operational notes. It never enters a public CLIP payload.
 - **Federated projection:** minimal claims needed by other participants, signed
   independently and linked to the private source by an internal identifier or
   one-way commitment.
@@ -759,7 +759,7 @@ public projections are the interoperability baseline.
   connection, including IPv4/IPv6 private, link-local, and metadata ranges.
 - Limit redirects, decompressed bytes, JSON depth, relationship count, and
   schema complexity.
-- Bind fetched `id` and `authority` exactly to the requested DAID before cache.
+- Bind fetched `id` and `authority` exactly to the requested CLIP before cache.
 - Reject duplicate JSON keys before canonicalization.
 - Use constant-time cryptographic libraries and never fetch a key URL supplied
   only by an unverified record; key IDs must bind to trusted discovery/DID data.
@@ -777,7 +777,7 @@ flowchart LR
     O --> L[Local Authoritative Store]
     O --> K[Verified Record Cache]
     O --> D[Authority Discovery]
-    D --> R[Remote DAID Authorities]
+    D --> R[Remote CLIP Authorities]
     O --> V[Schema and Proof Verifier]
     O --> P[Traversal and Privacy Policy]
     V --> H[Key History and DID Binding]
@@ -788,7 +788,7 @@ flowchart LR
 ```
 
 No component in this diagram is a central service. Discovery is performed from
-the authority in each DAID, caches are local, and mirrors are optional,
+the authority in each CLIP, caches are local, and mirrors are optional,
 replaceable stores of issuer-signed bytes.
 
 ## 7. Step-by-Step Implementation Roadmap
@@ -840,7 +840,7 @@ Modify:
 - `node/app/db/orm_models.py`: store `schema_version`, `record_kind`, original
   signed payload, proof metadata, verification timestamp/status, and cache source.
 - Replace the local-only edge foreign-key assumption with globally addressable
-  source and target DAID columns; a remote source/target need not exist in the
+  source and target CLIP columns; a remote source/target need not exist in the
   local `assets` table.
 - Add unique constraints for relationship IDs and signer roles, indexes for
   source/target/state, and immutable assertion/version history.
@@ -941,11 +941,11 @@ tokens fail, and public proof verification remains offline-capable.
 
 Modify:
 
-- `client/daid_client.py`: add v3 record classes, trust state, `resolve_graph`,
+- `client/clip_client.py`: add v3 record classes, trust state, `resolve_graph`,
   async streaming/progress callbacks, cancellation, and typed partial failures.
 - `node/app/api/jsonld.py`: expose relationship semantics using stable JSON-LD
   terms without changing signed source bytes.
-- BIM adapters: map instance DAIDs to `IfcElement`/`GlobalId`, type DAIDs to
+- BIM adapters: map instance CLIPs to `IfcElement`/`GlobalId`, type CLIPs to
   `IfcTypeObject`, and accepted edges to applicable `IfcRel*` entities.
 - `docs/architecture.md`, examples, and compose demos:
   document normative behavior and add owner/manufacturer/supplier/contractor/
@@ -998,16 +998,16 @@ Operational tests:
 
 ## 9. Explicit Non-Goals
 
-- DAID does not become a blockchain or require consensus over asset state.
-- DAID does not provide a global search index or reverse-link registry.
-- DAID does not copy every participant's source data into an owner-controlled
+- CLIP does not become a blockchain or require consensus over asset state.
+- CLIP does not provide a global search index or reverse-link registry.
+- CLIP does not copy every participant's source data into an owner-controlled
   record.
-- DAID does not treat an optional mirror, IPFS gateway, gossip peer, DID resolver,
+- CLIP does not treat an optional mirror, IPFS gateway, gossip peer, DID resolver,
   or ActivityPub relay as a universal dependency.
-- DAID signatures prove issuer control and payload integrity; legal identity,
+- CLIP signatures prove issuer control and payload integrity; legal identity,
   regulatory acceptance, and truth of a claim remain policy and assurance
   questions outside the base transport protocol.
 
-This architecture turns DAID into an instance-based lifecycle network while
+This architecture turns CLIP into an instance-based lifecycle network while
 keeping authority local, verification portable, and failure contained to the
 unavailable branch of the graph.

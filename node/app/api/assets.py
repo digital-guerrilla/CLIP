@@ -1,4 +1,4 @@
-"""Authoritative DAID v3 record publication and history endpoints."""
+"""Authoritative CLIP v3 record publication and history endpoints."""
 
 import asyncio
 import json
@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..core.crypto import NodeKeyManager
-from ..core.guid import generate_daid, parse_daid
+from ..core.guid import generate_clip, parse_clip
 from ..core.models import (
     AssetCreateRequest,
     AssetHistoryEntry,
@@ -71,7 +71,7 @@ def _signed_record(
         "updated_at": updated_at.isoformat(),
         "version": version,
         "proof": Proof(
-            verification_method=f"{controller}#daid-record-signing",
+            verification_method=f"{controller}#clip-record-signing",
             created=proof_created,
             proof_value="unsigned-placeholder",
         ).model_dump(mode="json"),
@@ -113,7 +113,7 @@ async def get_asset(
     x_api_key: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> AssetRecord:
-    record_id = f"daid://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
+    record_id = f"clip://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
     row = (await db.execute(select(Asset).where(Asset.id == record_id))).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail=f"Record not found: {record_id}")
@@ -130,11 +130,11 @@ async def create_asset(
     key_manager: NodeKeyManager = Depends(get_key_manager),
     _: None = Depends(require_api_key),
 ) -> AssetRecord:
-    record_id = generate_daid(settings.NODE_DOMAIN, key_manager.public_key_multibase)
+    record_id = generate_clip(settings.NODE_DOMAIN, key_manager.public_key_multibase)
     if body.relationships:
         raise HTTPException(
             status_code=422,
-            detail="Create the record first, then add relationships with PUT so their source can equal its DAID",
+            detail="Create the record first, then add relationships with PUT so their source can equal its CLIP",
         )
     now = datetime.now(timezone.utc)
     record = _signed_record(
@@ -150,7 +150,7 @@ async def create_asset(
         key_manager=key_manager,
     )
     document, raw_payload = record_to_storage(record)
-    parsed = parse_daid(record.id)
+    parsed = parse_clip(record.id)
     db.add(Asset(
         id=record.id,
         routing_host=parsed.routing_host,
@@ -179,7 +179,7 @@ async def update_asset(
     key_manager: NodeKeyManager = Depends(get_key_manager),
     _: None = Depends(require_api_key),
 ) -> AssetRecord:
-    record_id = f"daid://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
+    record_id = f"clip://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
     row = (await db.execute(select(Asset).where(Asset.id == record_id))).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail=f"Record not found: {record_id}")
@@ -249,7 +249,7 @@ async def get_asset_history(
     record_uuid: str,
     db: AsyncSession = Depends(get_db),
 ) -> list[AssetHistoryEntry]:
-    record_id = f"daid://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
+    record_id = f"clip://{settings.NODE_DOMAIN}/{authority}/{record_uuid}"
     rows = await db.execute(
         select(AssetHistory)
         .where(AssetHistory.asset_id == record_id)

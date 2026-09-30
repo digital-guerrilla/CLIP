@@ -1,6 +1,6 @@
-# DAID - Distributed Asset Identification
+# CLIP: Construction Lineage Information Protocol
 
-DAID 3.0 is a federated protocol for identifying physical assets and resolving
+CLIP 3.0 is a federated protocol for identifying physical assets and resolving
 their independently governed lifecycle evidence. Each record is signed by its
 issuer, each identifier binds to an authority key fingerprint, and an owner-held
 instance record links manufacturer, supplier, contractor, inspector, and other
@@ -12,7 +12,7 @@ the protocol and failure model; it is not yet a production trust service. See
 
 ## What Is Implemented
 
-- Self-certifying identifiers: `daid://{routing-host}/{key-fingerprint}/{uuid4}`
+- Self-certifying identifiers: `clip://{routing-host}/{key-fingerprint}/{uuid4}`
 - RFC 8785 JSON canonicalization and Ed25519 structured proofs
 - Signed `3.0` authority descriptors and purpose-scoped verification methods
 - `type`, `instance`, `assertion`, and `collection` records
@@ -20,13 +20,13 @@ the protocol and failure model; it is not yet a production trust service. See
 - Exact manufacturer baseline snapshots for `defines_type` relationships
 - Bounded, cycle-safe graph resolution with verified cache fallback
 - Signed public/restricted visibility and explicit per-node replication grants
-- COBie/CSV/JSON owner asset import with DAID extraction, deduplication, and idempotent replay
+- COBie/CSV/JSON owner asset import with CLIP extraction, deduplication, and idempotent replay
 - Authorization-aware asset queries and contractor batch relationship proposals
 - Authenticated encrypted evidence fragments with content-integrity manifests
 - Six role-based demo services, gossip membership, Python SDK, and web console
 
 The normative wire and resolution rules are in the
-[DAID Instance-Based Dependency Network](docs/instance-dependency-network.md).
+[CLIP Instance-Based Dependency Network](docs/instance-dependency-network.md).
 The implementation view and governance diagrams are in
 [Architecture](docs/architecture.md).
 
@@ -138,7 +138,7 @@ $env:DID_WEB_ID = "did:web:localhost%3A8000"
 
 - Operations console: <http://localhost:8000/ui>
 - OpenAPI: <http://localhost:8000/docs>
-- Signed descriptor: <http://localhost:8000/.well-known/daid/server>
+- Signed descriptor: <http://localhost:8000/.well-known/clip/server>
 
 Publish a manufacturer type:
 
@@ -160,7 +160,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/v3/records" `
 Resolve a graph:
 
 ```powershell
-$request = @{ root = "daid://..."; depth = 2; max_nodes = 50 } | ConvertTo-Json
+$request = @{ root = "clip://..."; depth = 2; max_nodes = 50 } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://localhost:8000/v3/resolve-graph" `
   -ContentType "application/json" -Body $request
 ```
@@ -169,7 +169,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8000/v3/resolve-graph" `
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/.well-known/daid/server` | Signed authority descriptor |
+| `GET` | `/.well-known/clip/server` | Signed authority descriptor |
 | `GET` | `/v3/node/info` | Node role and authority identity |
 | `GET` | `/v3/node/access` | Validate local private-data access |
 | `GET` | `/v3/node/storage` | Inspect encrypted storage opt-in and capacity |

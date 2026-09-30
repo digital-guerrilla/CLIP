@@ -1,4 +1,4 @@
-"""Async client for DAID v3 nodes."""
+"""Async client for CLIP v3 nodes."""
 
 from __future__ import annotations
 
@@ -37,14 +37,14 @@ class NodeInfo:
     role: str = "resolver"
 
 
-class DAIDClient:
+class CLIPClient:
     def __init__(self, node_url: str, api_key: str | None = None, timeout: int = 15):
         self._base = node_url.rstrip("/")
         self._api_key = api_key
         self._timeout = timeout
         self._client: httpx.AsyncClient | None = None
 
-    async def __aenter__(self) -> "DAIDClient":
+    async def __aenter__(self) -> "CLIPClient":
         self._client = httpx.AsyncClient(timeout=self._timeout, follow_redirects=False)
         return self
 
@@ -80,12 +80,12 @@ class DAIDClient:
         return response.json()
 
     async def get_well_known(self) -> dict[str, Any]:
-        response = await self._http().get(f"{self._base}/.well-known/daid/server")
+        response = await self._http().get(f"{self._base}/.well-known/clip/server")
         response.raise_for_status()
         return response.json()
 
-    async def get_record(self, daid: str) -> RecordResult:
-        authority, record_uuid = _split_daid(daid)
+    async def get_record(self, clip: str) -> RecordResult:
+        authority, record_uuid = _split_clip(clip)
         response = await self._http().get(
             f"{self._base}/v3/records/{authority}/{record_uuid}"
         )
@@ -126,7 +126,7 @@ class DAIDClient:
         record: RecordResult,
         subject: dict[str, Any],
     ) -> RecordResult:
-        authority, record_uuid = _split_daid(record.id)
+        authority, record_uuid = _split_clip(record.id)
         response = await self._http().put(
             f"{self._base}/v3/records/{authority}/{record_uuid}",
             json={
@@ -140,8 +140,8 @@ class DAIDClient:
         response.raise_for_status()
         return _parse_record(response.json())
 
-    async def get_history(self, daid: str) -> list[dict[str, Any]]:
-        authority, record_uuid = _split_daid(daid)
+    async def get_history(self, clip: str) -> list[dict[str, Any]]:
+        authority, record_uuid = _split_clip(clip)
         response = await self._http().get(
             f"{self._base}/v3/records/{authority}/{record_uuid}/history"
         )
@@ -150,14 +150,14 @@ class DAIDClient:
 
     async def upload_encrypted_document(
         self,
-        daid: str,
+        clip: str,
         content: bytes,
         file_name: str,
         *,
         media_type: str = "application/octet-stream",
         chunk_size: int = 1024 * 1024,
     ) -> dict[str, Any]:
-        authority, record_uuid = _split_daid(daid)
+        authority, record_uuid = _split_clip(clip)
         response = await self._http().post(
             f"{self._base}/v3/documents/encrypted-upload/{authority}/{record_uuid}",
             headers={
@@ -266,8 +266,8 @@ class DAIDClient:
         response.raise_for_status()
         return response.json()
 
-    async def get_replication_status(self, daid: str) -> dict[str, Any]:
-        authority, record_uuid = _split_daid(daid)
+    async def get_replication_status(self, clip: str) -> dict[str, Any]:
+        authority, record_uuid = _split_clip(clip)
         response = await self._http().get(
             f"{self._base}/v3/replication/status/{authority}/{record_uuid}",
             headers=self._headers(write=True),
@@ -275,8 +275,8 @@ class DAIDClient:
         response.raise_for_status()
         return response.json()
 
-    async def retry_replication(self, daid: str) -> dict[str, Any]:
-        authority, record_uuid = _split_daid(daid)
+    async def retry_replication(self, clip: str) -> dict[str, Any]:
+        authority, record_uuid = _split_clip(clip)
         response = await self._http().post(
             f"{self._base}/v3/replication/retry/{authority}/{record_uuid}",
             headers=self._headers(write=True),
@@ -290,11 +290,11 @@ class DAIDClient:
         return response.json()
 
 
-def _split_daid(daid: str) -> tuple[str, str]:
-    parsed = urlsplit(daid)
+def _split_clip(clip: str) -> tuple[str, str]:
+    parsed = urlsplit(clip)
     parts = parsed.path.strip("/").split("/")
-    if parsed.scheme != "daid" or not parsed.netloc or len(parts) != 2:
-        raise ValueError(f"Invalid DAID URI: {daid!r}")
+    if parsed.scheme != "clip" or not parsed.netloc or len(parts) != 2:
+        raise ValueError(f"Invalid CLIP URI: {clip!r}")
     return parts[0], parts[1]
 
 

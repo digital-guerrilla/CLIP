@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from .orm_models import Base
+from .migrations import upgrade
 
 # Module-level engine and session factory; initialised in init_db()
 _engine = None
@@ -29,7 +29,7 @@ def get_engine():
 
 async def init_db(database_url: str) -> None:
     """
-    Create the async engine, run table creation, and configure the session factory.
+    Create the async engine, apply numbered migrations, and configure the session factory.
     Called once at application startup via the FastAPI lifespan handler.
     """
     global _engine, _AsyncSessionLocal
@@ -47,7 +47,7 @@ async def init_db(database_url: str) -> None:
     _AsyncSessionLocal = async_sessionmaker(_engine, expire_on_commit=False)
 
     async with _engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(upgrade)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

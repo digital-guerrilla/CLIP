@@ -1,0 +1,27 @@
+{
+  "profile": "IFCX alpha 1a63082ada967c683cfacee2005f8f749c8e1b79 plus CLIP deletion v1",
+  "provenance": "Manually specified composition expectations independent of runtime serialization; external IFCX implementation qualification remains required.",
+  "schemas": {"ifc::name": {"value": {"dataType": "String"}}, "ifc::serial": {"value": {"dataType": "String"}}},
+  "cases": [
+    {
+      "name": "import-after-root-overrides",
+      "layers": [[{"path": "door", "attributes": {"ifc::name": "Owner override"}}], [{"path": "door", "attributes": {"ifc::name": "Imported later"}}]],
+      "entity": "door", "effective": {"ifc::name": "Imported later"}
+    },
+    {
+      "name": "type-inheritance-and-occurrence-override",
+      "layers": [[{"path": "door", "inherits": {"type": "types/door"}, "attributes": {"ifc::serial": "SN-1", "ifc::name": "Installed door"}}], [{"path": "types/door", "attributes": {"ifc::name": "Manufacturer door"}}]],
+      "entity": "door", "effective": {"ifc::name": "Installed door", "ifc::serial": "SN-1"}
+    },
+    {
+      "name": "named-inheritance-removal",
+      "layers": [[{"path": "door", "inherits": {"type": "types/door"}}, {"path": "types/door", "attributes": {"ifc::name": "Manufacturer door"}}], [{"path": "door", "inherits": {"type": null}, "attributes": {"ifc::serial": "SN-2"}}]],
+      "entity": "door", "effective": {"ifc::serial": "SN-2"}
+    },
+    {
+      "name": "clip-component-tombstone",
+      "layers": [[{"path": "door", "inherits": {"type": "types/door"}}, {"path": "types/door", "attributes": {"ifc::name": "Manufacturer door", "ifc::serial": "SN-3"}}], [{"path": "door", "attributes": {"urn:clip:ifcx:component-deletions:v1": ["ifc::name"]}}]],
+      "entity": "door", "effective": {"ifc::serial": "SN-3"}
+    }
+  ]
+}

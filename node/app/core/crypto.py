@@ -1,4 +1,4 @@
-"""RFC 8785 / Ed25519 cryptographic operations for CLIP v3 nodes."""
+"""RFC 8785 / Ed25519 cryptographic primitives for CLIP authorities."""
 
 import base64
 import hashlib

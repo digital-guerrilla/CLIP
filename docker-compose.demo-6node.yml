@@ -1,110 +1,110 @@
+x-demo-environment: &demo-environment
+  CLIP_GOSSIP_ENABLED: "true"
+  CLIP_GOSSIP_SEEDS: "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
+  CLIP_TRUSTED_PUBLISHERS: "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
+  CLIP_ALLOW_HTTP_LOOPBACK: "true"
+  CLIP_GOSSIP_INTERVAL: "2"
+  ENCRYPTED_STORAGE_CAPACITY_BYTES: "268435456"
+
 services:
-  node-manufacturer:
+  manufacturer:
     build: ./node
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8101"]
     ports:
-      - "8101:8000"
+      - "127.0.0.1:8101:8101"
+      - "127.0.0.1:8102:8102"
+      - "127.0.0.1:8103:8103"
+      - "127.0.0.1:8104:8104"
+      - "127.0.0.1:8105:8105"
+      - "127.0.0.1:8106:8106"
+    volumes: ["./examples/data:/demo"]
     environment:
-      NODE_DOMAIN: "node-manufacturer:8000"
-      NODE_API_BASE: "http://node-manufacturer:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
-      PRIVATE_KEY_FILE: "/data/node_key.bin"
-      API_KEY: "manufacturer-key"
+      <<: *demo-environment
+      NODE_API_BASE: "http://127.0.0.1:8101"
+      DID_WEB_ID: "did:web:127.0.0.1%3A8101"
+      DID_VERIFICATION_METHOD: "did:web:127.0.0.1%3A8101#authority-key"
+      PRIVATE_KEY_FILE: "/demo/manufacturer.key"
+      DATABASE_URL: "sqlite+aiosqlite:////demo/manufacturer.db"
+      DOCUMENT_STORAGE_DIR: "/demo/documents/manufacturer"
       NODE_ROLE: "manufacturer"
-      ALLOW_INSECURE_HTTP_DISCOVERY: "true"
-      GOSSIP_SEEDS: "http://node-supplier:8000,http://node-contractor:8000,http://node-owner:8000,http://node-inspector:8000,http://node-relay:8000"
-      DID_WEB_ID: "did:web:node-manufacturer%3A8000"
-    volumes:
-      - demo_manufacturer_data:/data
-
-  node-supplier:
+      API_KEY: "manufacturer-key"
+  supplier:
     build: ./node
-    ports:
-      - "8102:8000"
+    network_mode: "service:manufacturer"
+    depends_on: [manufacturer]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8102"]
+    volumes: ["./examples/data:/demo"]
     environment:
-      NODE_DOMAIN: "node-supplier:8000"
-      NODE_API_BASE: "http://node-supplier:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
-      PRIVATE_KEY_FILE: "/data/node_key.bin"
-      API_KEY: "supplier-key"
+      <<: *demo-environment
+      NODE_API_BASE: "http://127.0.0.1:8102"
+      DID_WEB_ID: "did:web:127.0.0.1%3A8102"
+      DID_VERIFICATION_METHOD: "did:web:127.0.0.1%3A8102#authority-key"
+      PRIVATE_KEY_FILE: "/demo/supplier.key"
+      DATABASE_URL: "sqlite+aiosqlite:////demo/supplier.db"
+      DOCUMENT_STORAGE_DIR: "/demo/documents/supplier"
       NODE_ROLE: "supplier"
-      ALLOW_INSECURE_HTTP_DISCOVERY: "true"
-      GOSSIP_SEEDS: "http://node-manufacturer:8000,http://node-contractor:8000,http://node-owner:8000,http://node-inspector:8000,http://node-relay:8000"
-      DID_WEB_ID: "did:web:node-supplier%3A8000"
-    volumes:
-      - demo_supplier_data:/data
-
-  node-contractor:
+      API_KEY: "supplier-key"
+  contractor:
     build: ./node
-    ports:
-      - "8103:8000"
+    network_mode: "service:manufacturer"
+    depends_on: [manufacturer]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8103"]
+    volumes: ["./examples/data:/demo"]
     environment:
-      NODE_DOMAIN: "node-contractor:8000"
-      NODE_API_BASE: "http://node-contractor:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
-      PRIVATE_KEY_FILE: "/data/node_key.bin"
-      API_KEY: "contractor-key"
+      <<: *demo-environment
+      NODE_API_BASE: "http://127.0.0.1:8103"
+      DID_WEB_ID: "did:web:127.0.0.1%3A8103"
+      DID_VERIFICATION_METHOD: "did:web:127.0.0.1%3A8103#authority-key"
+      PRIVATE_KEY_FILE: "/demo/main_contractor.key"
+      DATABASE_URL: "sqlite+aiosqlite:////demo/main_contractor.db"
+      DOCUMENT_STORAGE_DIR: "/demo/documents/main_contractor"
       NODE_ROLE: "main_contractor"
-      ALLOW_INSECURE_HTTP_DISCOVERY: "true"
-      GOSSIP_SEEDS: "http://node-manufacturer:8000,http://node-supplier:8000,http://node-owner:8000,http://node-inspector:8000,http://node-relay:8000"
-      DID_WEB_ID: "did:web:node-contractor%3A8000"
-    volumes:
-      - demo_contractor_data:/data
-
-  node-owner:
+      API_KEY: "contractor-key"
+  owner:
     build: ./node
-    ports:
-      - "8104:8000"
+    network_mode: "service:manufacturer"
+    depends_on: [manufacturer]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8104"]
+    volumes: ["./examples/data:/demo"]
     environment:
-      NODE_DOMAIN: "node-owner:8000"
-      NODE_API_BASE: "http://node-owner:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
-      PRIVATE_KEY_FILE: "/data/node_key.bin"
-      API_KEY: "owner-key"
+      <<: *demo-environment
+      NODE_API_BASE: "http://127.0.0.1:8104"
+      DID_WEB_ID: "did:web:127.0.0.1%3A8104"
+      DID_VERIFICATION_METHOD: "did:web:127.0.0.1%3A8104#authority-key"
+      PRIVATE_KEY_FILE: "/demo/owner.key"
+      DATABASE_URL: "sqlite+aiosqlite:////demo/owner.db"
+      DOCUMENT_STORAGE_DIR: "/demo/documents/owner"
       NODE_ROLE: "owner"
-      ALLOW_INSECURE_HTTP_DISCOVERY: "true"
-      GOSSIP_SEEDS: "http://node-manufacturer:8000,http://node-supplier:8000,http://node-contractor:8000,http://node-inspector:8000,http://node-relay:8000"
-      DID_WEB_ID: "did:web:node-owner%3A8000"
-    volumes:
-      - demo_owner_data:/data
-
-  node-inspector:
+      API_KEY: "owner-key"
+  inspector:
     build: ./node
-    ports:
-      - "8105:8000"
+    network_mode: "service:manufacturer"
+    depends_on: [manufacturer]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8105"]
+    volumes: ["./examples/data:/demo"]
     environment:
-      NODE_DOMAIN: "node-inspector:8000"
-      NODE_API_BASE: "http://node-inspector:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
-      PRIVATE_KEY_FILE: "/data/node_key.bin"
-      API_KEY: "inspector-key"
+      <<: *demo-environment
+      NODE_API_BASE: "http://127.0.0.1:8105"
+      DID_WEB_ID: "did:web:127.0.0.1%3A8105"
+      DID_VERIFICATION_METHOD: "did:web:127.0.0.1%3A8105#authority-key"
+      PRIVATE_KEY_FILE: "/demo/inspector.key"
+      DATABASE_URL: "sqlite+aiosqlite:////demo/inspector.db"
+      DOCUMENT_STORAGE_DIR: "/demo/documents/inspector"
       NODE_ROLE: "inspector"
-      ALLOW_INSECURE_HTTP_DISCOVERY: "true"
-      GOSSIP_SEEDS: "http://node-manufacturer:8000,http://node-supplier:8000,http://node-contractor:8000,http://node-owner:8000,http://node-relay:8000"
-      DID_WEB_ID: "did:web:node-inspector%3A8000"
-    volumes:
-      - demo_inspector_data:/data
-
-  node-relay:
+      API_KEY: "inspector-key"
+  relay:
     build: ./node
-    ports:
-      - "8106:8000"
+    network_mode: "service:manufacturer"
+    depends_on: [manufacturer]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8106"]
+    volumes: ["./examples/data:/demo"]
     environment:
-      NODE_DOMAIN: "node-relay:8000"
-      NODE_API_BASE: "http://node-relay:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
-      PRIVATE_KEY_FILE: "/data/node_key.bin"
-      API_KEY: "relay-key"
+      <<: *demo-environment
+      NODE_API_BASE: "http://127.0.0.1:8106"
+      DID_WEB_ID: "did:web:127.0.0.1%3A8106"
+      DID_VERIFICATION_METHOD: "did:web:127.0.0.1%3A8106#authority-key"
+      PRIVATE_KEY_FILE: "/demo/relay.key"
+      DATABASE_URL: "sqlite+aiosqlite:////demo/relay.db"
+      DOCUMENT_STORAGE_DIR: "/demo/documents/relay"
       NODE_ROLE: "relay"
-      ALLOW_INSECURE_HTTP_DISCOVERY: "true"
-      GOSSIP_SEEDS: "http://node-manufacturer:8000,http://node-supplier:8000,http://node-contractor:8000,http://node-owner:8000,http://node-inspector:8000"
-      DID_WEB_ID: "did:web:node-relay%3A8000"
-    volumes:
-      - demo_relay_data:/data
-
-volumes:
-  demo_manufacturer_data:
-  demo_supplier_data:
-  demo_contractor_data:
-  demo_owner_data:
-  demo_inspector_data:
-  demo_relay_data:
+      API_KEY: "relay-key"

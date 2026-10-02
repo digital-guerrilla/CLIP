@@ -5,7 +5,7 @@ $root = Split-Path $PSScriptRoot -Parent
 $dataDirectory = Join-Path $PSScriptRoot "data"
 New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
 
-$seedList = "http://127.0.0.1:8101,http://127.0.0.1:8102,http://127.0.0.1:8103,http://127.0.0.1:8104,http://127.0.0.1:8105,http://127.0.0.1:8106"
+$seedDids = "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
 $nodes = @(
     @{ Name="Manufacturer"; Port=8101; Role="manufacturer"; Key="manufacturer-key" },
     @{ Name="Supplier"; Port=8102; Role="supplier"; Key="supplier-key" },
@@ -26,6 +26,7 @@ foreach ($node in $nodes) {
 }
 
 foreach ($node in $nodes) {
+    $nodeDid = "did:web:127.0.0.1%3A$($node.Port)"
     $command = @"
 `$host.UI.RawUI.WindowTitle = 'CLIP $($node.Name) :$($node.Port)'
 Set-Location '$root'
@@ -35,14 +36,19 @@ Set-Location '$root'
 `$env:DATABASE_URL = 'sqlite+aiosqlite:///./examples/data/$($node.Role).db'
 `$env:PRIVATE_KEY_FILE = './examples/data/$($node.Role).key'
 `$env:DOCUMENT_STORAGE_DIR = './examples/data/documents/$($node.Role)'
-`$env:GOSSIP_SEEDS = '$seedList'
+`$env:CLIP_GOSSIP_ENABLED = 'true'
+`$env:CLIP_GOSSIP_SEEDS = '$seedDids'
+`$env:CLIP_TRUSTED_PUBLISHERS = '$seedDids'
+`$env:CLIP_ALLOW_HTTP_LOOPBACK = 'true'
+`$env:CLIP_GOSSIP_INTERVAL = '2'
 `$env:NODE_ROLE = '$($node.Role)'
-`$env:DID_WEB_ID = 'did:web:127.0.0.1%3A$($node.Port)'
-& '.\.venv\Scripts\python.exe' -m uvicorn node.app.main:app --port $($node.Port) --log-level warning
+`$env:DID_WEB_ID = '$nodeDid'
+`$env:DID_VERIFICATION_METHOD = '${nodeDid}#authority-key'
+& '.\.venv\Scripts\python.exe' -m uvicorn node.app.main:app --host 127.0.0.1 --port $($node.Port) --log-level warning
 "@
     Start-Process pwsh -ArgumentList "-NoProfile", "-NoExit", "-Command", $command
 }
 
-Write-Host "Launching six CLIP services on ports 8101-8106..." -ForegroundColor Cyan
+Write-Host "Launching six CLIP authorities with DID gossip on ports 8101-8106..." -ForegroundColor Cyan
 & "$PSScriptRoot\seed-network.ps1"
-Write-Host "Dashboard: http://127.0.0.1:8104/ui" -ForegroundColor Green
+Write-Host "CLIP network / IFC graph API docs: http://127.0.0.1:8104/docs" -ForegroundColor Green

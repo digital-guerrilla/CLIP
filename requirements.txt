@@ -16,7 +16,9 @@ aiosqlite>=0.19.0
 
 # ── HTTP client (federation + client SDK) ────────────────────────────────────
 httpx>=0.26.0
+httpcore>=1.0,<2.0
 
 # ── Cryptography (Ed25519 signing / verification) ────────────────────────────
 PyNaCl>=1.5.0
 rfc8785>=0.1.4
+ifcopenshell>=0.8,<0.9

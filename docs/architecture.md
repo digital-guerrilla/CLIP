@@ -1,157 +1,203 @@
-# CLIP 3.0 Architecture
+# CLIP Network And IFC Graph Architecture
 
-## Trust Model
+## Status
 
-A CLIP identifies a logical record and binds it to an Ed25519 genesis-key
-fingerprint. DNS and HTTP locate an authority for the current request; they do
-not establish authority. A resolver accepts a record only when the signed
-descriptor fingerprint matches the CLIP, the named verification method has the
-required purpose, the record identity matches the request, and its RFC 8785
-canonical proof verifies.
+IFC5/IFCX is the target canonical model for construction entities, product
+types, assets, and their relationships. The current repository contains a
+CLIP network and IFC graph transaction, client and operations implementation. The
+v3 HTTP surface has been removed. Existing v3 data is not converted or deleted;
+there is no v3 data, API, SDK or signature compatibility.
+
+The IFCX target is pinned to buildingSMART/IFC5-development commit
+`1a63082ada967c683cfacee2005f8f749c8e1b79`. That source is alpha, and its import
+provider leaves validation and integrity checking as TODOs. CLIP therefore
+adds a strict, documented publication profile around IFCX imports.
+
+## Graph Model
+
+CLIP owns identity, peer discovery, gossip, replication, document transport and
+organisation-to-organisation workflows. These use `/clip/v1`, `CLIP_*` network
+settings and `clip_*` infrastructure modules/tables. IFC owns graph datasets,
+components, hierarchy, inheritance, entity authoring and signed graph changes.
+These use `/ifc/v1` and `ifc_*` graph modules/tables. The protocol models are
+separated into `clip_protocol.py` for transport/authentication and
+`ifc_protocol.py` for graph transactions.
+
+IFCX is the pinned graph serialization format, not the network protocol.
+Its format-specific models, fields and schema semantics retain their IFCX names.
+Neither old `/ifcx/v1` routes nor `IFCX_*` setting aliases are provided.
+
+An IFCX path identifies an entity. Its schema-keyed `attributes` are typed
+components. `children` express hierarchy; `inherits` brings type components to
+an occurrence. Components do not each receive a DID. The structured IFC
+component address is authority DID + dataset ID + entity path + component
+schema ID.
+
+Inspection, installation, maintenance, and similar records should be event
+entities with their own typed components and references to the relevant asset,
+organization, and evidence. Manufacturer product information remains in the
+manufacturer-owned type entity; an owner asset can inherit it from an imported
+manufacturer layer and override components locally.
+
+Supply-chain graph reads additionally resolve verified manufacturer snapshots to
+shared type nodes keyed by original manufacturer DID and product ID. This identity
+survives acceptance, different supplier chains, datasets and nested assemblies.
+Component-type references describe a BOM, not physical containment. The default
+projection follows observed published manufacturer revisions; authorised graph
+refresh pulls signed catalogues and persists their verified revisions. Pinned
+views use revision-qualified nodes so distinct historical pins remain exact.
+The projection does not rewrite signed IFC publications or immutable issue
+snapshots. See [Supply-chain workflows](supply-chain-workflows.md#shared-manufacturer-types-and-published-updates).
 
 ```mermaid
 flowchart LR
-    C[Client or CAFM] --> G[Graph resolver]
-    G --> L[Local authoritative records]
-    G --> K[Verified cache]
-    G --> D[Signed authority discovery]
-    D --> A[Independent authorities]
-    A --> V[Schema and proof verification]
-    V --> K
-    K --> G
-    G --> R[Partial graph response]
+        M[Manufacturer authority] -->|signed IFCX publication| P[Product type entity]
+        O[Owner authority] -->|owns| A[Asset occurrence entity]
+        A -->|inherits type path| P
+        S[Supplier authority] -->|signed event or claim| E[Supply / installation / inspection entity]
+        O -->|proposal + explicit acceptance| E
+        A -->|references evidence| D[Encrypted document manifest]
+        C[Client] -->|DID resolution + pinned imports| G[Composed IFCX graph]
 ```
 
-No node is a global registry. Every authority controls only its own records;
-the owner controls the instance root and which external assertions it accepts.
+Gossip and peer health are a separate CLIP operational control plane. A node
+being unreachable does not alter construction facts in the IFCX graph. The
+default CLIP gossip loop identifies peers by `did:web`, resolves each endpoint
+from a `ClipGossipService` entry in that peer's DID document, and exchanges
+signed generation digests. Indirectly learned DIDs remain `unknown`; only a
+fresh, authenticated direct digest marks a peer `alive`. Enable it with
+`CLIP_GOSSIP_ENABLED=true` and provide comma-separated `CLIP_GOSSIP_SEEDS` DIDs.
+Disabling gossip disables membership exchange; it does not restore legacy gossip.
 
-## Asset Lifecycle
+## Federation And Trust
 
-The lifecycle is an append-only evidence graph. Product facts, custody,
-procurement, installation, inspection, maintenance, and decommissioning remain
-signed by the organizations responsible for those claims.
+Each organization controls its DID and signs its own dataset publications and
+assertions. A signature proves control of a key and integrity of the signed
+bytes; dataset policy separately authorizes which DIDs may propose changes.
+Each dataset has an owner-managed `trustedProposers` allowlist, stored outside
+the IFCX semantics; an empty list denies external proposals.
 
-```mermaid
-sequenceDiagram
-    participant M as Manufacturer
-    participant S as Supplier
-    participant C as Main contractor
-    participant O as Asset owner
-    participant I as Inspector
-    participant R as Resolver
+The current import profile works as follows:
 
-    M->>M: Publish type record
-    O->>O: Publish physical instance root
-    M->>O: Propose defines_type with pinned baseline
-    O->>O: Verify manufacturer proof and accept
-    S->>S: Publish custody assertion
-    S->>O: Propose custody_event
-    C->>O: Propose procured_under assertion
-    I->>O: Propose inspected_by assertion
-    O->>O: Append accepted links and sign new root versions
-    R->>O: Resolve instance root
-    par Independent child resolution
-        R->>M: Verify type and baseline
-        R->>S: Verify custody evidence
-        R->>C: Verify procurement evidence
-        R->>I: Verify inspection evidence
-    end
-    R-->>R: Return complete or explicit partial graph
-```
+1. An authority serves `/ifc/v1/datasets/{dataset-id}/publication`, containing
+     the IFCX file, publisher DID, and W3C Data Integrity proof.
+2. An importing IFCX file names the publication URI and pins the exact response
+     bytes with SRI `sha256-<base64 digest>` in `integrity`.
+3. The importer fetches over HTTPS without redirects, rejects non-public
+     destinations, checks size/depth/layer limits, verifies the byte digest, then
+     resolves the publisher DID and verifies its `assertionMethod` proof.
+    The publisher must also be in `CLIP_TRUSTED_PUBLISHERS`.
+4. Nested dependencies are composed in the pinned IFCX stack order: root first,
+     imports afterward. Later layers override earlier contributions.
 
-A later manufacturer update cannot rewrite the installed baseline. The
-`defines_type` edge pins the accepted type version and canonical SHA-256 digest.
-Corrections publish a new record version or superseding assertion.
+`integrity` is an untyped string in the pinned IFCX alpha. The SRI SHA-256
+encoding above is a CLIP profile, not a claim about upstream integrity
+semantics. Imported schemas and data are validated together after federation.
 
-## Data Governance
+## Agreements
 
-CLIP separates control of evidence from aggregation of evidence. This avoids a
-single asset database becoming an accidental owner of every participant's data.
+The transaction API separates assertion from authorization:
 
-```mermaid
-flowchart TB
-    subgraph Private systems
-        ERP[Manufacturer ERP]
-        SCM[Supplier SCM]
-        CDE[Contractor CDE]
-        FM[Owner CAFM]
-    end
-    ERP -->|minimal signed type projection| MT[Manufacturer CLIP]
-    SCM -->|minimal signed custody projection| SA[Supplier CLIP]
-    CDE -->|minimal signed project projection| CA[Contractor CLIP]
-    FM -->|owner-controlled identity| IR[Instance root]
-    MT -->|stakeholder proof + owner acceptance| IR
-    SA -->|stakeholder proof + owner acceptance| IR
-    CA -->|stakeholder proof + owner acceptance| IR
-    IR --> RES[Verified graph response]
-    MT -. no commercial source data copied .-> RES
-    SA -. no invoice or margin copied .-> RES
-    CA -. no private project file copied .-> RES
-```
+1. A trusted proposer signs a component-level proposal with an
+     `assertionMethod` key. It binds the target address, schema digest, and
+     expected local sequence.
+2. The dataset owner separately accepts or rejects with a
+     `capabilityInvocation` proof. A proposal alone never changes the graph.
+3. Acceptance appends an IFCX layer contribution, increments that authority's
+     local sequence, and stores a signed receipt atomically. Rejection also gets
+     a signed receipt but does not advance the accepted-change sequence.
 
-This addresses common governance failures:
+Native JSON transactions use the W3C `eddsa-jcs-2022` Data Integrity suite. The
+sequence is local to one authority; there is no global ordering or consensus.
 
-| Governance problem | CLIP control |
-|---|---|
-| One party silently edits another's facts | Every authority signs only its own record or assertion |
-| DNS or hosting takeover impersonates an issuer | The identifier binds to a key fingerprint |
-| Aggregator becomes the source of truth | The owner stores signed pointers and acceptance, not copied claims |
-| Product data changes after installation | Accepted type relationships pin version and digest |
-| Supplier disappears | Verified cached evidence remains usable and is marked stale |
-| Missing evidence is hidden | Graph responses preserve failed edges and explicit reason codes |
-| Sensitive commercial data spreads | Authorities publish minimal projections from private source systems |
-| Audit history is overwritten | Updates append immutable signed history versions |
+## Component Removal
 
-## Record And Relationship Writes
+The pinned composer treats `null` attribute values as values, not as component
+deletion. CLIP therefore declares the versioned extension schema
+`urn:clip:ifcx:component-deletions:v1`. Its array of schema IDs masks inherited
+and local components after composition. A later `set` removes the schema ID
+from this mask and supplies a value. The extension is inserted at dataset
+registration and included in the schema digest. Other IFCX consumers must
+understand this extension to reproduce CLIP's deletion behavior.
 
-Record publication builds the complete envelope, normalizes it through the
-Pydantic wire model, canonicalizes it with RFC 8785, and signs every field except
-`proof`. Storage retains the complete JSON document and received payload.
+## Implemented Surface
 
-Cross-authority relationships use two proofs:
+The current `/ifc/v1` API supports:
 
-1. The target stakeholder signs a proposal whose `target` is its authoritative
-   record.
-2. The root owner resolves the target descriptor, verifies the assertion proof,
-   appends an acceptance proof, and publishes a new signed root version.
+- `POST /datasets`: register a validated IFCX file and proposer allowlist.
+- `GET /datasets/{id}/publication`: retrieve the authority-signed publication.
+- `PUT /datasets/{id}/trusted-proposers`: update the local authorization list.
+- `POST /proposals` and `POST /decisions`: submit and decide signed component
+    changes.
+- `GET /datasets/{id}/components`: resolve an effective component after imports,
+    inheritance, overrides, and CLIP tombstones.
+- `POST /clip/v1/network/gossip/sync` and `GET /clip/v1/network/gossip/peers`:
+    exchange DID-authenticated operational membership digests and inspect local
+    peer health; this state is not part of an IFCX asset dataset.
 
-Ordinary record updates cannot change the relationship list. This prevents a
-write client from bypassing the consent workflow.
+The current test suite covers local graph composition, cross-authority
+manufacturer type resolution, signed nested imports, integrity tampering,
+proposer authorization, acceptance/rejection receipts, and component
+set/remove/restore behavior.
 
-## Resolution And Failure
+## Replication And Evidence
 
-`POST /v3/resolve-graph` performs bounded breadth-first traversal with a visited
-set, depth limit, and node limit. Links are followed only from verified records.
-A missing child is returned as a failure entry and does not turn a verified root
-into an HTTP error. A verified cached child can be returned as
-`verified_stale` when its authority is unavailable.
+`ClipReplicationService` and `ClipEvidenceService` entries advertise DID-bound
+service endpoints. Service envelopes use `authentication` proofs, an exact
+audience DID and a five-minute freshness window. Receiver-signed receipts are
+verified before placement is acknowledged. A replica stores the owner-signed
+publication and full accepted authority history without acquiring authority over
+the graph. Same-digest retries are idempotent; rollback and history rewriting
+are refused.
 
-The current implementation uses SQLite per node and local cache records. The
-production controls still required are tracked in [Roadmap](roadmap.md).
+Evidence upload produces a signed manifest and an evidence reference suitable
+for a normal component proposal. Every document key is sealed to a DID-resolved
+X25519 recipient key. Storage nodes hold ciphertext, not plaintext keys.
+Placement receipts commit to complete nonce+ciphertext bytes and retention.
+Repair re-fetches missing/corrupt fragments through the recipient service and
+checks the original manifest digest. Expired evidence is inaccessible and can
+be physically removed with the operator retention sweep.
 
-## Backend Integration Flows
+## Organisation-Owned Supply Chain
 
-External systems enter through adapters rather than writing a second record
-format. An owner can import COBie/CSV/JSON component rows through
-`POST /v3/imports/assets`; the importer signs normal owner instance records,
-extracts valid CLIPs from source fields into `subject.linked_clips`, preserves
-source values and row provenance, and supports idempotent replay. Imported
-links are resolved as `import_reference` graph links and remain distinct from
-authority-signed relationships.
+The `/clip/v1/supply-chain` service adds owned product definitions, supplied
+offerings, deliveries, installations and recipient assets. Each local authoring
+operation commits through signed graph proposals, authority decisions and
+receipts. Immutable signed record revisions pin dependencies rather than
+silently following an upstream latest version.
 
-Contractor systems can query an authorized installed-asset projection through
-`GET /v3/records/query` and submit bounded relationship proposal batches through
-`POST /v3/relationships/bulk-proposals`. Installation proposals may carry
-additional signed CLIP references to manufacturer, supplier, inspection, or
-evidence records. The owner acceptance workflow remains the authority boundary;
-graph resolution exposes the linked records and their provenance without
-copying another authority's facts into the owner record.
+Directed issues bind selected records, dependency proofs, document digests,
+recipient DID and receiving project. Recipient decisions create linked local
+records without granting control over upstream records. Per-project scoped
+sender approval is separate from broad Viewer/Contributor membership. Issues,
+decisions, joined projects and idempotency results are persisted in appended
+checksum-verified migrations.
 
-Confidential evidence uses the authenticated fragment primitive in
-`node/app/core/content_crypto.py`. A random SecretBox key encrypts each chunk
-with its own nonce, while the manifest commits to every ciphertext and to the
-reconstructed plaintext. A node holding a fragment can verify its digest but
-cannot read it without the document key. This primitive is deliberately
-separate from placement: threshold/quorum coding, recipient key wrapping,
-storage receipts, repair, and authenticated peer transfer must be added before
-it becomes the network's confidential document service.
+Workflow documents are encrypted at rest and retrieved through a local broker
+and DID-authenticated source grants. They are distinct from the original sealed
+fragment evidence subsystem. See [Supply-chain workflows](supply-chain-workflows.md)
+for the implemented console, routes and operational boundaries.
+
+## Construction Mappings
+
+COBie Component and Type CSV exports map to occurrence/type paths and native
+`inherits` edges. Source properties and external identifiers are preserved.
+IfcOpenShell parses IFC4.3 STEP into product/type paths, property sets, type
+inheritance and spatial references. Geometry conversion is not included.
+Event, evidence and source extensions use versioned
+`urn:clip:construction:*:v1` schema identifiers, not invented buildingSMART IDs.
+
+## Operations And Validation
+
+Database startup applies frozen, checksum-verified numbered migrations.
+Migration 9 renames infrastructure tables to `clip_*` and graph tables to
+`ifc_*`, retaining rows and the checksums of revisions 1-8. Unrelated pre-IFCX
+legacy tables remain untouched. Import caches retain exact byte-pinned envelopes;
+corrupt bytes are removed and fetched again. DID proofs are checked on every
+composition, so a cached import is not a way around key revocation.
+
+See [Operations](operations.md) for rotation, revocation, trust, retention,
+deployment and outbound DNS policy. The opt-in six-authority regression covers
+restart, offline/rejoin, proof-bundle replication, stale/corrupt import recovery
+and encrypted fragment repair. Conformance vectors exercise proof verification
+with an independent Ed25519 implementation and composition expectations.

@@ -1,50 +1,29 @@
 services:
-  # ───────────────────────────────────────────────────────────────────
-  # Node Alpha  (authority: node-alpha:8000, exposed on host :8001)
-  # ───────────────────────────────────────────────────────────────────
-  node-alpha:
+  authority:
     build: ./node
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      NODE_DOMAIN: "node-alpha:8000"
-      NODE_API_BASE: "http://node-alpha:8000"
+      NODE_API_BASE: "${NODE_API_BASE:?Set the public HTTPS API URL}"
+      DID_WEB_ID: "${DID_WEB_ID:?Set the authority did:web identifier}"
+      DID_VERIFICATION_METHOD: "${DID_VERIFICATION_METHOD:?Set the DID signing method}"
+      API_KEY: "${API_KEY:?Set a strong operator key}"
       DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
-      PRIVATE_KEY_FILE: "/data/node_key.bin"
-      API_KEY: "alpha-key"
-      FEDERATION_TIMEOUT: "10"
-      CACHE_TTL: "3600"
+      PRIVATE_KEY_FILE: "/data/node.key"
+      DOCUMENT_STORAGE_DIR: "/data/documents"
+      CLIP_GOSSIP_ENABLED: "true"
+      CLIP_GOSSIP_SEEDS: "${CLIP_GOSSIP_SEEDS:-}"
+      CLIP_TRUSTED_PUBLISHERS: "${CLIP_TRUSTED_PUBLISHERS:-}"
+      CLIP_EGRESS_ALLOWED_HOSTS: "${CLIP_EGRESS_ALLOWED_HOSTS:-}"
+      CLIP_ALLOW_HTTP_LOOPBACK: "false"
+      ENCRYPTED_STORAGE_OPT_IN: "false"
+      ENCRYPTED_STORAGE_CAPACITY_BYTES: "1073741824"
     volumes:
-      - node_alpha_data:/data
+      - authority_data:/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
-      interval: 10s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/.well-known/did.json')"]
+      interval: 15s
       timeout: 5s
       retries: 3
-
-  # ───────────────────────────────────────────────────────────────────
-  # Node Beta  (authority: node-beta:8000, exposed on host :8002)
-  # ───────────────────────────────────────────────────────────────────
-  node-beta:
-    build: ./node
-    ports:
-      - "8002:8000"
-    environment:
-      NODE_DOMAIN: "node-beta:8000"
-      NODE_API_BASE: "http://node-beta:8000"
-      DATABASE_URL: "sqlite+aiosqlite:////data/clip.db"
-      PRIVATE_KEY_FILE: "/data/node_key.bin"
-      API_KEY: "beta-key"
-      FEDERATION_TIMEOUT: "10"
-      CACHE_TTL: "3600"
-    volumes:
-      - node_beta_data:/data
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
 volumes:
-  node_alpha_data:
-  node_beta_data:
+  authority_data:

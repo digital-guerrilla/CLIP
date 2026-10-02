@@ -62,18 +62,14 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Gossip
     # ------------------------------------------------------------------
-    # Comma-separated list of seed peer base URLs for bootstrap.
-    # e.g. "http://node2.local:8001,http://node3.local:8002"
-    GOSSIP_SEEDS: str = ""
-
     # How often (seconds) to run a gossip round (pick a random peer and exchange digests)
-    GOSSIP_INTERVAL: int = 15
+    CLIP_GOSSIP_INTERVAL: int = 15
 
     # Seconds without a heartbeat before marking a peer as 'suspect'
-    GOSSIP_SUSPECT_TIMEOUT: int = 45
+    CLIP_GOSSIP_SUSPECT_TIMEOUT: int = 45
 
     # Seconds after being suspected before marking as 'dead'
-    GOSSIP_DEAD_TIMEOUT: int = 120
+    CLIP_GOSSIP_DEAD_TIMEOUT: int = 120
 
     # Node role for startup behavior and capability defaults.
     # Supported values:
@@ -91,6 +87,19 @@ class Settings(BaseSettings):
     # DID (did:web)
     # ------------------------------------------------------------------
     DID_WEB_ID: str = ""
+    DID_VERIFICATION_METHOD: str = ""
+    DID_PREVIOUS_KEYS: list[dict] = []
+    DID_REVOKED_METHODS: list[str] = []
+    CLIP_TRUSTED_PUBLISHERS: str = ""
+    CLIP_EGRESS_ALLOWED_HOSTS: str = ""
+    CLIP_MAX_SERVICE_BYTES: int = 32 * 1024 * 1024
+
+    # Enable DID-authenticated CLIP peer membership.
+    CLIP_GOSSIP_ENABLED: bool = True
+    # Comma-separated did:web identifiers used to seed CLIP peer discovery.
+    CLIP_GOSSIP_SEEDS: str = ""
+    # Development-only HTTP exception for loopback DID documents and IFCX imports.
+    CLIP_ALLOW_HTTP_LOOPBACK: bool = False
 
 
 settings = Settings()

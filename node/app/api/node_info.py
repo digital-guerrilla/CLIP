@@ -1,29 +1,31 @@
-"""CLIP v3 node information endpoint."""
+"""CLIP node identity and operational controls."""
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from ..config import settings
 from ..core.crypto import NodeKeyManager
-from ..core.models import NodeInfo
 from ..dependencies import get_key_manager, require_api_key
 from ..state import is_offline, is_storage_opt_in, set_offline, set_storage_opt_in
 from pathlib import Path
 
-router = APIRouter(prefix="/v3/node", tags=["node"])
+router = APIRouter(prefix="/clip/v1/node", tags=["node"])
 
 
-@router.get("/info", response_model=NodeInfo)
+@router.get("/info")
 async def get_node_info(
     key_manager: NodeKeyManager = Depends(get_key_manager),
-) -> NodeInfo:
-    return NodeInfo(
-        routing_host=settings.NODE_DOMAIN,
-        authority=key_manager.public_key_multibase,
-        role=settings.NODE_ROLE,
-        encrypted_storage_opt_in=is_storage_opt_in(settings.ENCRYPTED_STORAGE_OPT_IN),
-        encrypted_storage_capacity_bytes=settings.ENCRYPTED_STORAGE_CAPACITY_BYTES,
-    )
+) -> dict:
+    return {
+        "did": settings.DID_WEB_ID,
+        "verificationMethod": settings.DID_VERIFICATION_METHOD,
+        "publicKeyMultibase": key_manager.public_key_multibase,
+        "role": settings.NODE_ROLE,
+        "protocol": "clip/v1",
+        "graphApi": "/ifc/v1",
+        "encryptedStorageOptIn": is_storage_opt_in(settings.ENCRYPTED_STORAGE_OPT_IN),
+        "encryptedStorageCapacityBytes": settings.ENCRYPTED_STORAGE_CAPACITY_BYTES,
+    }
 
 
 @router.get("/access")

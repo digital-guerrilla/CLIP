@@ -14,29 +14,26 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from .api import (
-    assets,
-    bulk_assets,
-    bulk_relationships,
-    discovery,
-    document_store,
-    federation,
-    gossip as gossip_api,
-    lifecycle,
+    did as did_api,
+    clip_network as clip_network_api,
+    ifc_transactions,
+    clip_replication,
+    clip_evidence,
+    ifc_imports,
+    clip_projects,
+    clip_supply_chain,
     node_info,
-    relationships,
-    query,
-    replication,
-    resolve,
     ui as ui_router,
 )
 from .config import settings
 from .db.database import close_db, init_db
 from .dependencies import get_key_manager
-from .federation import gossip as gossip_engine
+from .federation import clip_gossip as clip_gossip_engine
 from .state import is_offline
+from .core.egress import decode_json
 
 # Always reachable even while the demo kill-switch is engaged, so a node can be brought back online.
-OFFLINE_EXEMPT_PATH = "/v3/node/offline"
+OFFLINE_EXEMPT_PATH = "/clip/v1/node/offline"
 
 
 @asynccontextmanager
@@ -52,47 +49,43 @@ async def lifespan(_app: FastAPI):
     print(f"[clip] Public key: {km.public_key_b64}")
     print(f"[clip] Role:       {settings.NODE_ROLE}")
 
-    # Bootstrap gossip membership from seed peers
-    await gossip_engine.bootstrap_peers()
-
-    # Start background gossip loop (no-op for producer-role nodes)
-    gossip_task = asyncio.create_task(gossip_engine.gossip_loop())
+    gossip_task = None
+    if settings.CLIP_GOSSIP_ENABLED:
+        await clip_gossip_engine.bootstrap_did_peers()
+        gossip_task = asyncio.create_task(clip_gossip_engine.clip_gossip_loop(km))
 
     yield
 
     # Graceful shutdown
-    gossip_task.cancel()
-    try:
-        await gossip_task
-    except asyncio.CancelledError:
-        pass
+    if gossip_task is not None:
+        gossip_task.cancel()
+        try:
+            await gossip_task
+        except asyncio.CancelledError:
+            pass
     await close_db()
 
 
 app = FastAPI(
     title="CLIP Node",
     description=(
-        "Distributed Asset Identification Node — "
-        "federated, cryptographically-signed product/asset tracking. "
-        "This API exposes the authoritative record, federation, proof verification, "
-        "and document workflows used by the CLIP v3 protocol."
+        "IFCX composition, authority-governed transactions, DID-authenticated "
+        "federation and encrypted construction evidence. No v3 compatibility."
     ),
-    version="3.0.0",
+    version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_tags=[
-        {"name": "discovery", "description": "Signed authority descriptor and protocol discovery endpoints."},
+        {"name": "did", "description": "DID controller documents and service endpoints."},
         {"name": "node", "description": "Node identity, access checks, storage status, and demo operational controls."},
-        {"name": "records", "description": "Authoritative record creation, listing, querying, and version history."},
-        {"name": "query", "description": "Authorized asset lookup and filtered record queries."},
-        {"name": "relationships", "description": "Signed relationship proposals, acceptance, and lifecycle assertions."},
-        {"name": "imports", "description": "Bulk COBie/CSV/JSON asset import jobs and status tracking."},
-        {"name": "resolution", "description": "Verified graph resolution and root-object dependency traversal."},
-        {"name": "federation", "description": "Peer synchronization and incoming replicated record verification."},
+        {"name": "imports", "description": "IFC4.3 and COBie conversion into native IFCX datasets."},
+        {"name": "projects", "description": "Project setup and inherited organisation permissions."},
+        {"name": "supply-chain", "description": "Authority-owned product sourcing, catalogue revisions, evidence and scoped signed handover."},
         {"name": "documents", "description": "Document upload, retrieval, and encrypted fragment handling."},
-        {"name": "gossip", "description": "Peer membership and gossip digest exchange for distributed discovery."},
         {"name": "replication", "description": "Replication job visibility and retry operations."},
+        {"name": "ifc", "description": "IFC graph transaction proposals and authority decisions using IFCX serialization."},
+        {"name": "clip-gossip", "description": "DID-authenticated peer membership separate from the IFCX asset graph."},
         {"name": "ui", "description": "Web console assets for the local operations dashboard."},
     ],
 )
@@ -117,7 +110,6 @@ def custom_openapi():
         "name": "x-api-key",
         "description": "Local node API key required for writes and restricted view access.",
     }
-    openapi_schema["security"] = [{"x_api_key": []}]
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
@@ -136,24 +128,32 @@ app.add_middleware(
 async def offline_kill_switch(request: Request, call_next):
     if is_offline() and request.url.path != OFFLINE_EXEMPT_PATH:
         return JSONResponse(status_code=503, content={"detail": "Node is offline (simulated)"})
+    if request.method in {"POST", "PUT", "PATCH"}:
+        content = bytearray()
+        async for chunk in request.stream():
+            content.extend(chunk)
+            if len(content) > settings.CLIP_MAX_SERVICE_BYTES:
+                return JSONResponse(status_code=413, content={"detail": "Request exceeds the configured byte limit"})
+        request._body = bytes(content)
+        if request.headers.get("content-type", "").split(";")[0] == "application/json":
+            try:
+                decode_json(request._body)
+            except (ValueError, UnicodeDecodeError):
+                return JSONResponse(status_code=400, content={"detail": "Invalid JSON or duplicate members"})
     return await call_next(request)
 
 
-# /.well-known/clip/server  (no prefix)
-app.include_router(discovery.router)
+app.include_router(did_api.router)
 
-app.include_router(assets.router)
-app.include_router(bulk_assets.router)
-app.include_router(document_store.router)
-app.include_router(resolve.router)
-app.include_router(federation.router)
-app.include_router(gossip_api.router)
+app.include_router(clip_network_api.router)
 app.include_router(node_info.router)
-app.include_router(relationships.router)
-app.include_router(bulk_relationships.router)
-app.include_router(query.router)
-app.include_router(lifecycle.router)
-app.include_router(replication.router)
+app.include_router(ifc_transactions.router)
+app.include_router(clip_replication.router)
+app.include_router(clip_evidence.router)
+app.include_router(ifc_imports.router)
+app.include_router(clip_projects.router)
+app.include_router(clip_projects.graph_router)
+app.include_router(clip_supply_chain.router)
 app.include_router(ui_router.router)
 
 
@@ -162,8 +162,9 @@ async def root():
     return {
         "name": "CLIP Node",
         "node_id": settings.NODE_DOMAIN,
-        "protocol_version": "3.0",
+        "protocol_version": "clip/v1",
+        "graph_api": "/ifc/v1",
         "docs": "/docs",
-        "well_known": "/.well-known/clip/server",
+        "well_known": "/.well-known/did.json",
         "ui": "/ui",
     }

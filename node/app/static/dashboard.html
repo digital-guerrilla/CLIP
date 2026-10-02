@@ -1,277 +1,534 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Asset Network</title>
-  <style>
-    :root { --ink:#17201c; --muted:#64716a; --paper:#eef0eb; --surface:#fff; --line:#d4dad5; --green:#176b4a; --soft:#e7f2ec; --blue:#315f78; --red:#a63d2f; --amber:#b77818; }
-    * { box-sizing:border-box; }
-    body { margin:0; color:var(--ink); background:var(--paper); font-family:"Segoe UI","Trebuchet MS",sans-serif; letter-spacing:0; }
-    button,input,select,textarea { font:inherit; letter-spacing:0; }
-    button { min-height:40px; border:0; border-radius:4px; padding:8px 14px; background:var(--green); color:#fff; font-weight:700; cursor:pointer; }
-    button.secondary { color:var(--ink); background:#e1e5e0; }
-    button:disabled { opacity:.55; cursor:wait; }
-    header { min-height:64px; padding:12px clamp(18px,3vw,42px); display:flex; align-items:center; justify-content:space-between; gap:20px; color:#fff; background:#17201c; border-bottom:4px solid #dfaa3c; }
-    .brand { display:flex; align-items:baseline; gap:12px; } h1 { margin:0; font:700 23px/1 Georgia,serif; } .brand span { color:#b8c8bf; font-size:13px; }
-    .node-state { display:flex; align-items:center; gap:8px; font-size:12px; color:#d6ded9; }.dot { width:8px; height:8px; border-radius:50%; background:#d8a13c; }.dot.online { background:#58c18c; }
-    .console-band { padding:16px clamp(18px,3vw,42px); background:#f7f8f5; border-bottom:1px solid var(--line); }.console-inner { width:min(1380px,100%); margin:auto; display:grid; grid-template-columns:minmax(0,1.6fr) minmax(280px,.7fr); gap:18px; }.console-title { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px; }.console-title h2 { margin:0; font:700 18px Georgia,serif; }.console-actions { display:flex; gap:8px; flex-wrap:wrap; }.node-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }.node-card { min-height:64px; padding:9px 11px; display:grid; grid-template-columns:9px minmax(0,1fr); gap:9px; align-items:center; border:1px solid var(--line); background:#fff; }.node-card i { width:8px; height:36px; border-radius:2px; background:#58c18c; }.node-card.suspect i { background:#d8a13c; }.node-card.offline i { background:#9b5650; }.node-card strong,.node-card small { display:block; }.node-card strong { font-size:12px; }.node-card small { margin-top:3px; color:var(--muted); font-size:10px; }.activity-panel { min-height:112px; border-left:1px solid var(--line); padding-left:18px; }.activity-panel h3 { margin:0 0 9px; font:700 16px Georgia,serif; }.activity-feed { max-height:118px; overflow:auto; display:grid; gap:7px; }.activity-item { padding-left:9px; border-left:3px solid var(--green); font-size:11px; line-height:1.35; }.activity-item.warn { border-color:var(--amber); }.activity-item.error { border-color:var(--red); }.activity-item time { display:block; color:var(--muted); font-size:10px; }
-    .lookup-band { padding:22px clamp(18px,3vw,42px); background:#26342e; color:#fff; }
-    .lookup-inner { width:min(1380px,100%); margin:auto; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; }
-    .lookup-copy { grid-column:1/-1; display:flex; justify-content:space-between; align-items:end; gap:20px; }.lookup-copy h2 { margin:0; font:700 20px/1.2 Georgia,serif; }.lookup-copy p { margin:0; color:#b9c6c0; font-size:13px; }
-    .search-shell { position:relative; }#lookup { width:100%; min-height:46px; padding:10px 14px 10px 42px; border:2px solid transparent; border-radius:5px; background:#fff; color:var(--ink); }#lookup:focus { outline:0; border-color:#e2b24f; }.search-icon { position:absolute; left:14px; top:12px; color:#66736c; font-size:20px; }
-    .suggestions { position:absolute; z-index:5; top:50px; left:0; right:0; max-height:330px; overflow:auto; color:var(--ink); background:#fff; border:1px solid var(--line); box-shadow:0 12px 30px #10181435; display:none; }.suggestions.open { display:block; }.suggestion { padding:12px 14px; display:grid; grid-template-columns:36px 1fr auto; gap:10px; align-items:center; border-bottom:1px solid #e7e9e6; cursor:pointer; }.suggestion:hover { background:#f0f5f1; }.suggestion strong,.suggestion small { display:block; }.suggestion small { margin-top:3px; color:var(--muted); }.suggestion-icon { width:32px; height:32px; display:grid; place-items:center; border-radius:50%; background:var(--soft); color:var(--green); font-weight:800; }
-    main { width:min(1440px,100%); margin:auto; padding:22px clamp(14px,2vw,28px) 40px; }.empty-state { min-height:430px; display:grid; place-items:center; padding:30px; text-align:center; color:var(--muted); }.empty-state strong { display:block; margin-bottom:8px; color:var(--ink); font:700 22px Georgia,serif; }
-    .dossier { display:none; gap:18px; }.dossier.active { display:grid; }.hidden { display:none!important; }
-    .asset-head { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:20px; }.eyebrow { color:var(--green); font-size:11px; font-weight:800; text-transform:uppercase; }.asset-head h2 { margin:5px 0 7px; font:700 clamp(26px,3vw,38px)/1.05 Georgia,serif; }.asset-head p { margin:0; color:var(--muted); }.asset-actions { display:flex; align-items:center; gap:8px; }.trust { display:flex; gap:8px; align-items:center; color:var(--green); background:var(--soft); border:1px solid #9dc7b2; border-radius:4px; padding:9px 12px; font-size:12px; font-weight:700; white-space:nowrap; }
-    .metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border:1px solid var(--line); background:#fff; }.metric { padding:15px 18px; border-right:1px solid var(--line); }.metric:last-child { border:0; }.metric span { display:block; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; }.metric strong { display:block; margin-top:5px; font-size:15px; overflow-wrap:anywhere; }
-    .layout { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(300px,.8fr); gap:18px; align-items:start; }.stack { display:grid; gap:18px; }section { background:var(--surface); border:1px solid var(--line); border-radius:6px; }.section-head { min-height:52px; padding:13px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--line); }.section-head h3 { margin:0; font:700 18px Georgia,serif; }.section-head span { color:var(--muted); font-size:12px; }
-    .facts { padding:16px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 28px; }.fact dt { color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; }.fact dd { margin:4px 0 0; font-size:14px; overflow-wrap:anywhere; }
-    .timeline { padding:8px 18px 20px; }.event { display:grid; grid-template-columns:28px minmax(0,1fr) auto; gap:12px; padding:16px 0; border-bottom:1px solid #e5e8e4; }.event:last-child { border:0; }.event-marker { position:relative; width:24px; height:24px; display:grid; place-items:center; border-radius:50%; color:#fff; background:var(--green); font-size:11px; font-weight:800; }.event-marker:after { content:""; position:absolute; top:24px; bottom:-32px; left:11px; width:2px; background:#cbd8d0; }.event:last-child .event-marker:after { display:none; }.event h4 { margin:1px 0 4px; font-size:14px; }.event p { margin:0; color:var(--muted); font-size:12px; line-height:1.45; }.event time { color:var(--muted); font-size:11px; white-space:nowrap; }.stage { display:inline-block; margin-top:7px; padding:3px 6px; color:var(--blue); background:#e8f0f4; border-radius:3px; font-size:10px; font-weight:800; text-transform:uppercase; }
-    .docs { padding:10px; display:grid; gap:8px; }.doc { padding:11px; display:grid; grid-template-columns:34px minmax(0,1fr) auto; gap:10px; align-items:center; border:1px solid #e1e5e1; background:#fafbf9; }.doc-icon { width:32px; height:36px; display:grid; place-items:center; color:var(--blue); background:#e7eef1; font-weight:800; font-size:10px; }.doc strong,.doc small { display:block; overflow-wrap:anywhere; }.doc strong { font-size:13px; }.doc small { margin-top:3px; color:var(--muted); }.doc a { color:var(--green); font-size:12px; font-weight:700; text-decoration:none; }.fallback { padding:18px; color:var(--muted); font-size:13px; line-height:1.5; }
-    .network { padding:14px; display:grid; gap:9px; }.network-row { display:grid; grid-template-columns:10px minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 0; }.swatch { width:8px; height:30px; border-radius:2px; background:var(--green); }.network-row strong,.network-row small { display:block; }.network-row strong { font-size:13px; }.network-row small { margin-top:3px; color:var(--muted); font-size:11px; }.badge { padding:3px 6px; color:var(--green); background:var(--soft); border-radius:3px; font-size:10px; font-weight:800; text-transform:uppercase; }
-    .badge.cache { color:var(--blue); background:#e8f0f4; }.badge.stale { color:var(--red); background:#f6e6e2; }.swatch.stale { background:var(--red); }.swatch.cache { background:var(--blue); }
-    .failure-banner { margin:0 0 14px; padding:11px 14px; color:var(--red); background:#f6e6e2; border:1px solid #e3b3a6; border-radius:4px; font-size:12px; }
-    .health-panel { margin-bottom:18px; }.health-grid { padding:14px; display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }.health-card { padding:11px 12px; display:grid; gap:8px; border:1px solid var(--line); background:#fff; }.health-card header { display:flex; align-items:center; gap:8px; padding:0; background:none; border:0; min-height:0; color:inherit; }.health-card i { width:8px; height:8px; border-radius:50%; background:#58c18c; }.health-card.suspect i { background:var(--amber); }.health-card.offline i,.health-card.forced i { background:var(--red); }.health-card strong,.health-card small { display:block; }.health-card small { color:var(--muted); font-size:11px; }.health-card button { min-height:32px; padding:5px 10px; font-size:11px; }
-    .ledger { padding:4px 14px 14px; display:grid; gap:6px; }.ledger .network-row { padding:6px 0; }
-    .storage-bar { height:6px; border-radius:3px; background:#e1e5e0; overflow:hidden; }.storage-bar i { display:block; height:100%; background:var(--blue); }
-    .doc-distribution { margin-top:8px; display:grid; gap:4px; padding:8px; background:#f5f7f4; border:1px solid #e5e8e4; border-radius:4px; }.dist-row { display:grid; grid-template-columns:8px 1fr auto; gap:8px; align-items:center; font-size:11px; color:var(--muted); }.dist-row i { width:8px; height:8px; border-radius:50%; background:var(--green); }.dist-row i.cache { background:var(--blue); }.dist-row i.stale { background:var(--red); }
-    .doc-actions { display:grid; gap:6px; }.doc-actions button { min-height:32px; padding:5px 10px; font-size:11px; }
-    .wizard-step { display:none; }.wizard-step.active { display:grid; gap:12px; }.wizard-progress { display:flex; gap:6px; padding:0 18px; }.wizard-progress span { flex:1; height:4px; background:#e1e5e0; border-radius:2px; }.wizard-progress span.done { background:var(--green); }.payload { margin:0; padding:12px; background:#1c2622; color:#d8e5dd; font:11px/1.5 Consolas,monospace; border-radius:4px; overflow:auto; max-height:220px; white-space:pre-wrap; overflow-wrap:anywhere; }.proof-pair { display:grid; grid-template-columns:1fr 1fr; gap:10px; }.proof-card { padding:10px; border:1px solid var(--line); background:#fafbf9; font-size:11px; }.proof-card strong { display:block; margin-bottom:4px; font-size:12px; }.narration { margin:0; color:var(--muted); font-size:13px; line-height:1.5; }
-    .nested-head { display:flex; justify-content:space-between; align-items:center; gap:10px; }.nested-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #e7e9e6; }.nested-row button { min-height:34px; padding:6px 10px; }
-    .event.clickable,.network-row.clickable { cursor:pointer; }.event.clickable:hover,.network-row.clickable:hover { background:#f5f7f4; }
-    details { border-top:1px solid var(--line); }summary { padding:13px 16px; cursor:pointer; color:var(--muted); font-size:12px; font-weight:700; }.technical { padding:0 16px 14px; font:11px/1.5 Consolas,monospace; overflow-wrap:anywhere; color:#56625c; }
-    dialog { width:min(660px,calc(100% - 28px)); border:0; border-radius:6px; padding:0; color:var(--ink); box-shadow:0 20px 60px #1118; }dialog::backdrop { background:#17201caa; }.dialog-head { padding:16px 18px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }.dialog-head h3 { margin:0; font:700 19px Georgia,serif; }.close { width:38px; padding:0; font-size:20px; }form { padding:18px; display:grid; gap:13px; }label { display:grid; gap:5px; color:#526059; font-size:11px; font-weight:700; text-transform:uppercase; }input,textarea,select { width:100%; min-height:40px; border:1px solid #aeb8b1; border-radius:4px; background:#fff; padding:8px 10px; color:var(--ink); }select[multiple] { min-height:112px; }textarea { min-height:250px; resize:vertical; font:13px/1.45 Consolas,monospace; }.compact-textarea { min-height:82px; }.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }.check { display:flex; grid-template-columns:none; align-items:center; gap:9px; min-height:40px; padding:8px 10px; border:1px solid var(--line); background:#f8faf7; }.check input { width:18px; min-height:18px; margin:0; }.dialog-actions { display:flex; justify-content:flex-end; gap:8px; }.message { min-height:18px; font-size:12px; }.error { color:var(--red); }.toasts { position:fixed; z-index:20; right:18px; bottom:18px; width:min(360px,calc(100% - 36px)); display:grid; gap:8px; }.toast { padding:12px 14px; color:#fff; background:#26342e; border-left:4px solid #58c18c; box-shadow:0 8px 24px #1115; font-size:12px; animation:arrive .25s ease-out; }.toast.warn { border-color:#dfaa3c; }.toast.error { border-color:#d36b5d; }@keyframes arrive { from { transform:translateY(8px); opacity:0; } }
-    @media (max-width:900px) { .console-inner,.layout { grid-template-columns:1fr; }.activity-panel { border-left:0; border-top:1px solid var(--line); padding:12px 0 0; }.metrics { grid-template-columns:1fr 1fr; }.metric:nth-child(2) { border-right:0; }.metric:nth-child(-n+2) { border-bottom:1px solid var(--line); } }
-    @media (max-width:600px) { .brand { display:block; }.brand span { display:block; margin-top:4px; }.node-grid { grid-template-columns:1fr 1fr; }.console-title { align-items:flex-start; flex-direction:column; }.lookup-copy { display:block; }.lookup-copy p { margin-top:6px; }.asset-head { grid-template-columns:1fr; }.facts,.form-grid { grid-template-columns:1fr; }.event { grid-template-columns:28px 1fr; }.event time { grid-column:2; } }
-  </style>
-</head>
-<body>
-  <header><div class="brand"><h1>Asset Network</h1><span>Verified lifecycle evidence</span></div><div class="node-state"><i id="health-dot" class="dot"></i><span id="node-label">Connecting to network</span></div></header>
-  <div class="console-band"><div class="console-inner"><div><div class="console-title"><h2>Network operations</h2><div class="console-actions"><button id="create-asset" type="button">Create record</button><button id="run-scenario" class="secondary" type="button">Run guided scenario</button><button id="unlock-data" class="secondary" type="button">Private access</button><button id="associate-record" class="secondary" type="button">Associate stakeholder</button><button id="upload-document" class="secondary" type="button" disabled>Upload document</button><button id="toggle-health" class="secondary" type="button">Network health</button><button id="toggle-storage" class="secondary" type="button">Storage &amp; privacy</button></div></div><div id="node-grid" class="node-grid"></div></div><div class="activity-panel"><h3>Client activity</h3><div id="activity-feed" class="activity-feed"><div class="activity-item">Monitoring record versions and node health<time>Now</time></div></div></div></div></div>
-  <div class="lookup-band"><div class="lookup-inner"><div class="lookup-copy"><h2>Find an asset or related record</h2><p>Scan or enter a serial, model, tag, IFC GUID, batch, project, name, or network code</p></div><div class="search-shell"><span class="search-icon">⌕</span><input id="lookup" autocomplete="off" placeholder="e.g. AHU-2026-009184 or North Wing AHU-03"><div id="suggestions" class="suggestions"></div></div><button id="find">Find asset</button></div></div>
-  <main>
-    <section id="network-health" class="health-panel hidden"><div class="section-head"><h3>Network health</h3><span>Live gossip state · take a node offline to see cache fallback in action</span></div><div id="health-grid" class="health-grid"></div><div class="section-head"><h3>Replication ledger</h3><span id="ledger-count"></span></div><div id="ledger" class="ledger"></div></section>
-    <section id="storage-panel" class="health-panel hidden"><div class="section-head"><h3>Storage &amp; privacy</h3><span>Each node opts in independently to caching encrypted fragments for peers · public documents replicate openly, restricted documents only reach permitted nodes</span></div><div id="storage-grid" class="health-grid"></div></section>
-    <div id="empty" class="empty-state"><div><strong>Search across every level of the asset</strong><span>Start with any code or known detail. Related manufacturer, supply, project, location, and inspection records will be assembled into one view.</span></div></div>
-    <div id="dossier" class="dossier">
-      <div class="asset-head"><div><div class="eyebrow" id="asset-kind">Physical asset</div><h2 id="asset-name"></h2><p id="asset-subtitle"></p></div><div class="asset-actions"><button id="edit-record" class="secondary hidden" type="button">Edit record</button><div class="trust"><span id="trust-label">Network verified</span></div></div></div>
-      <div class="metrics"><div class="metric"><span>Serial / asset tag</span><strong id="serial">—</strong></div><div class="metric"><span>Manufacturer & model</span><strong id="model">—</strong></div><div class="metric"><span>Current location</span><strong id="location">—</strong></div><div class="metric"><span>Lifecycle position</span><strong id="position">—</strong></div></div>
-      <div class="layout"><div class="stack">
-        <section><div class="section-head"><h3>Asset information</h3><span id="updated"></span></div><dl id="facts" class="facts"></dl></section>
-        <section><div class="section-head"><h3>Lifecycle timeline</h3><span id="timeline-count"></span></div><div id="timeline" class="timeline"></div></section>
-      </div><aside class="stack">
-        <section><div class="section-head"><h3>Documents & evidence</h3><span id="doc-count"></span></div><div id="documents" class="docs"></div></section>
-        <section><div class="section-head"><h3>Contributing network</h3><span id="network-count"></span></div><div id="failure-banner" class="failure-banner hidden"></div><div id="network" class="network"></div><details><summary>Technical record details</summary><div id="technical" class="technical"></div></details></section>
-      </aside></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CLIP | Construction Network</title>
+    <link rel="stylesheet" href="/ui/static/dashboard.css" />
+    <script defer src="/ui/static/d3.min.js"></script>
+    <script defer src="/ui/static/lucide.min.js"></script>
+    <script defer src="/ui/static/dashboard.js"></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="brand" href="/ui" aria-label="CLIP overview"
+        ><span class="brand-mark"><i data-lucide="network"></i></span
+        ><strong>CLIP</strong
+        ><span class="brand-caption">Construction network</span></a
+      >
+      <div class="authority">
+        <span class="status-dot"></span
+        ><span id="authority-label">Connecting</span
+        ><span id="role" class="role"></span>
+      </div>
+      <div class="header-actions">
+        <button
+          id="refresh"
+          class="icon-button"
+          title="Refresh network"
+          aria-label="Refresh network"
+        >
+          <i data-lucide="refresh-cw"></i></button
+        ><button
+          id="access"
+          class="icon-button"
+          title="Local authorization and storage"
+          aria-label="Local authorization and storage"
+        >
+          <i data-lucide="key-round"></i></button
+        ><button
+          id="actions"
+          class="icon-button"
+          title="Authority actions"
+          aria-label="Authority actions"
+          aria-expanded="false"
+        >
+          <i data-lucide="ellipsis"></i>
+        </button>
+        <div id="action-menu" class="action-menu" hidden>
+          <button id="new-project-menu"><i data-lucide="folder-plus"></i>Create project / library</button>
+          <button id="join-project-menu"><i data-lucide="ticket"></i>Enter invite</button>
+          <button id="new-entity-menu"><i data-lucide="plus"></i>Create entity</button>
+          <button id="register">
+            <i data-lucide="plus"></i>Register dataset</button
+          ><button id="signed">
+            <i data-lucide="file-signature"></i>Submit signed transaction</button
+          ><a href="/docs"><i data-lucide="braces"></i>API reference</a>
+        </div>
+      </div>
+    </header>
+    <div class="workspace-nav">
+      <nav role="tablist" aria-label="Workspace views">
+        <button
+          id="tab-overview"
+          role="tab"
+          data-view="overview"
+          aria-selected="true"
+          aria-controls="overview"
+        >
+          <i data-lucide="waypoints"></i>Overview</button
+        ><button
+          id="tab-assets"
+          role="tab"
+          data-view="assets"
+          aria-selected="false"
+          aria-controls="assets"
+          tabindex="-1"
+        >
+          <i data-lucide="building-2"></i>Facilities &amp; assets</button
+        ><button id="tab-projects" role="tab" data-view="projects" aria-selected="false" aria-controls="projects" tabindex="-1">
+          <i data-lucide="folder-lock"></i>Projects</button
+        ><button id="tab-products" role="tab" data-view="products" aria-selected="false" aria-controls="products" tabindex="-1">
+          <i data-lucide="factory"></i>My products</button
+        ><button id="tab-supplied" role="tab" data-view="supplied" aria-selected="false" aria-controls="supplied" tabindex="-1">
+          <i data-lucide="package-check"></i>My supplied products</button
+        ><button id="tab-discover" role="tab" data-view="discover" aria-selected="false" aria-controls="discover" tabindex="-1">
+          <i data-lucide="search"></i>Discover products</button
+        ><button id="tab-documents" role="tab" data-view="documents" aria-selected="false" aria-controls="documents" tabindex="-1">
+          <i data-lucide="file-text"></i>Documents</button
+        ><button id="tab-installations" role="tab" data-view="installations" aria-selected="false" aria-controls="installations" tabindex="-1">
+          <i data-lucide="hard-hat"></i>Installations</button
+        ><button id="tab-submissions" role="tab" data-view="submissions" aria-selected="false" aria-controls="submissions" tabindex="-1">
+          <i data-lucide="send"></i>Submissions</button
+        ><button
+          id="tab-activity"
+          role="tab"
+          data-view="activity"
+          aria-selected="false"
+          aria-controls="activity"
+          tabindex="-1"
+        >
+          <i data-lucide="activity"></i>Activity</button
+        ><button
+          id="tab-replication"
+          role="tab"
+          data-view="replication"
+          aria-selected="false"
+          aria-controls="replication"
+          tabindex="-1"
+        >
+          <i data-lucide="copy-check"></i>Replication
+        </button>
+      </nav>
+      <label class="scope"
+        ><i data-lucide="layers"></i
+        ><select id="scope" aria-label="Dataset scope">
+          <option value="">All datasets</option>
+        </select></label
+      >
     </div>
-  </main>
-  <dialog id="edit-dialog">
-    <div class="dialog-head"><h3>Edit authoritative record</h3><button id="close-edit" class="secondary close" type="button" title="Close">×</button></div>
-    <form id="edit-form">
-      <label>API key<input id="edit-api-key" type="password" autocomplete="off" required placeholder="Key for this node"></label>
-      <div class="form-grid"><label class="check"><input id="edit-public" type="checkbox"> Public data</label><label>Share restricted data with<select id="edit-allowed" multiple></select></label></div>
-      <label>Record data<textarea id="edit-subject" required spellcheck="false"></textarea></label>
-      <div id="edit-message" class="message"></div>
-      <div class="dialog-actions"><button id="cancel-edit" class="secondary" type="button">Cancel</button><button id="save-edit" type="submit">Save new version</button></div>
-    </form>
-  </dialog>
-  <dialog id="create-dialog">
-    <div class="dialog-head"><h3>Create network record</h3><button class="secondary close dialog-close" type="button" title="Close">×</button></div>
-    <form id="create-form">
-      <div class="form-grid"><label>Authority node<select id="create-node"></select></label><label>Record kind<select id="create-kind"><option value="instance">Physical asset</option><option value="type">Manufacturer type</option><option value="assertion">Lifecycle assertion</option><option value="collection">Collection</option></select></label></div>
-      <div class="form-grid"><label>API key<input id="create-api-key" type="password" autocomplete="off" required></label><label class="check"><input id="create-public" type="checkbox"> Public data</label></div>
-      <label>Share restricted data with<select id="create-allowed" multiple></select></label>
-      <div class="form-grid"><label>Asset name<input id="create-name" required placeholder="North Wing Pump 04"></label><label>Serial / asset tag<input id="create-serial" placeholder="PMP-2026-004"></label></div>
-      <div class="form-grid"><label>Asset owner<input id="create-owner"></label><label>Building<input id="create-building"></label></div>
-      <div class="form-grid"><label>Storey<input id="create-storey"></label><label>Space<input id="create-space"></label></div>
-      <label>Additional attributes (JSON)<textarea id="create-attributes" class="compact-textarea" spellcheck="false">{}</textarea></label>
-      <div id="create-message" class="message"></div><div class="dialog-actions"><button class="secondary dialog-close" type="button">Cancel</button><button id="create-submit" type="submit">Create and publish</button></div>
-    </form>
-  </dialog>
-  <dialog id="associate-dialog">
-    <div class="dialog-head"><h3>Associate stakeholder record</h3><button class="secondary close dialog-close" type="button" title="Close">×</button></div>
-    <form id="associate-form">
-      <div class="form-grid"><label>Asset authority node (owner)<select id="associate-root-node"></select></label><label>Root instance<select id="associate-root-clip" required></select></label></div>
-      <label>Stakeholder node<select id="associate-node"></select></label>
-      <label>Stakeholder record<select id="associate-target" required></select></label>
-      <div class="form-grid"><label>Stakeholder API key<input id="associate-api-key" type="password"><small id="associate-api-key-hint" style="color:var(--muted)"></small></label><label>Asset authority API key<input id="associate-root-key" type="password" required></label></div>
-      <label>Association claim<textarea id="associate-claims" class="compact-textarea" spellcheck="false">{}</textarea></label>
-      <div class="nested-head"><span>Nested items in this assertion (optional)</span><button id="associate-add-nested" class="secondary" type="button">+ Add nested item</button></div>
-      <p class="narration">e.g. a contractor asserting an installation can attach the individual components it covers here — the owner accepts the whole cascade in one action.</p>
-      <div id="associate-nested-list"></div>
-      <div id="associate-message" class="message"></div><div class="dialog-actions"><button class="secondary dialog-close" type="button">Cancel</button><button id="associate-submit" type="submit">Sign and associate</button></div>
-    </form>
-  </dialog>
-  <dialog id="scenario-dialog">
-    <div class="dialog-head"><h3>Guided scenario: propose &amp; accept an assertion</h3><button class="secondary close dialog-close" type="button" title="Close">×</button></div>
-    <div class="wizard-progress"><span id="wizard-dot-0"></span><span id="wizard-dot-1"></span><span id="wizard-dot-2"></span></div>
-    <form id="scenario-form">
-      <div id="wizard-step-0" class="wizard-step">
-        <p class="narration">Pick which stakeholder is asserting a claim, and which owner will independently review and accept it. Two different authorities will each sign with their own key — neither can forge the other's proof.</p>
-        <div class="form-grid"><label>Stakeholder node<select id="scenario-stakeholder"></select></label><label>Owner / root node<select id="scenario-owner"></select></label></div>
-        <label>Instance record (owned by the root node)<select id="scenario-target"></select></label>
-        <div id="scenario-message" class="message"></div>
-        <div class="dialog-actions"><button class="secondary dialog-close" type="button">Cancel</button><button id="wizard-next-0" type="button">Next: review proposal</button></div>
-      </div>
-      <div id="wizard-step-1" class="wizard-step">
-        <p class="narration" id="scenario-step1-narration"></p>
-        <pre id="scenario-proposal-payload" class="payload"></pre>
-        <div id="scenario-proposal-result" class="hidden"><p class="narration">Proposal signed. State is now <strong>proposed</strong> with a single assertion proof:</p><div class="proof-card"><strong>relationship-assertion</strong><span id="scenario-proof-1"></span></div></div>
-        <div id="scenario-message-1" class="message"></div>
-        <div class="dialog-actions"><button class="secondary" id="wizard-back-1" type="button">Back</button><button id="wizard-propose" type="button">Sign &amp; send proposal</button><button id="wizard-next-1" type="button" disabled>Next: owner review</button></div>
-      </div>
-      <div id="wizard-step-2" class="wizard-step">
-        <p class="narration" id="scenario-step2-narration"></p>
-        <pre id="scenario-accept-payload" class="payload"></pre>
-        <div id="scenario-accept-result" class="hidden"><p class="narration">Accepted. State is now <strong>accepted</strong> — both proofs are independently verifiable:</p><div class="proof-pair"><div class="proof-card"><strong>relationship-assertion</strong><span id="scenario-proof-a"></span></div><div class="proof-card"><strong>relationship-acceptance</strong><span id="scenario-proof-b"></span></div></div></div>
-        <div id="scenario-message-2" class="message"></div>
-        <div class="dialog-actions"><button class="secondary" id="wizard-back-2" type="button">Back</button><button id="wizard-accept" type="button">Verify &amp; accept</button><button id="wizard-finish" type="button" disabled>Finish &amp; view timeline</button></div>
-      </div>
-    </form>
-  </dialog>
-  <dialog id="detail-dialog">
-    <div class="dialog-head"><h3 id="detail-title">Record details</h3><button class="secondary close dialog-close" type="button" title="Close">×</button></div>
-    <div class="stack" style="padding:18px">
-      <p class="narration" id="detail-subtitle"></p>
-      <dl id="detail-facts" class="facts"></dl>
-      <div id="detail-edge" class="hidden"><div class="section-head" style="border:0;padding:0 0 8px"><h3>Assertion claim</h3></div><dl id="detail-edge-facts" class="facts"></dl><div id="detail-proofs" class="proof-pair"></div></div>
-      <details open><summary>Full record (everything this node can see)</summary><pre id="detail-raw" class="payload technical"></pre></details>
-    </div>
-  </dialog>
-  <dialog id="upload-dialog">
-    <div class="dialog-head"><h3>Upload document</h3><button class="secondary close dialog-close" type="button" title="Close">×</button></div>
-    <form id="upload-form"><label>File<input id="upload-file" type="file" required></label><label>Asset authority API key<input id="upload-api-key" type="password" required></label><div id="upload-message" class="message"></div><div class="dialog-actions"><button class="secondary dialog-close" type="button">Cancel</button><button id="upload-submit" type="submit">Hash, attach, and distribute</button></div></form>
-  </dialog>
-  <dialog id="access-dialog">
-    <div class="dialog-head"><h3>Private data access</h3><button class="secondary close dialog-close" type="button" title="Close">×</button></div>
-    <form id="access-form"><label>Local node API key<input id="access-api-key" type="password" autocomplete="off" required></label><div id="access-message" class="message"></div><div class="dialog-actions"><button class="secondary dialog-close" type="button">Cancel</button><button type="submit">Unlock this session</button></div></form>
-  </dialog>
-  <div id="toasts" class="toasts" aria-live="polite"></div>
-  <script>
-    const $ = id => document.getElementById(id);
-    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-    const title = value => String(value || '').replaceAll('_',' ').replace(/\b\w/g, char => char.toUpperCase());
-    const formatDate = value => value ? new Intl.DateTimeFormat(undefined,{dateStyle:'medium'}).format(new Date(value)) : 'Sequence verified';
-    const request = async (path, options={}) => { const response=await fetch(path,options); if(!response.ok) throw new Error((await response.json().catch(()=>({}))).detail || `HTTP ${response.status}`); return response.json(); };
-    // Fixed local demo keys matching docker-compose.demo-6node.yml — convenience prefill only, never real secrets.
-    const demoNodes = [
-      {name:'Manufacturer',role:'manufacturer',base:'http://127.0.0.1:8101',relation:'defines_type',demoKey:'manufacturer-key'},
-      {name:'Supplier',role:'supplier',base:'http://127.0.0.1:8102',relation:'custody_event',demoKey:'supplier-key'},
-      {name:'Contractor',role:'main_contractor',base:'http://127.0.0.1:8103',relation:'procured_under',demoKey:'contractor-key'},
-      {name:'Owner',role:'owner',base:'http://127.0.0.1:8104',relation:'commissioned_by',demoKey:'owner-key'},
-      {name:'Inspector',role:'inspector',base:'http://127.0.0.1:8105',relation:'inspected_by',demoKey:'inspector-key'},
-      {name:'Relay',role:'relay',base:'http://127.0.0.1:8106',relation:'maintained_by',demoKey:'relay-key'}
-    ];
-    let catalog=[], nodeInfo=null, activeRecord=null, lastGraph=null, nodeStates=new Map(), recordVersions=new Map(), monitoringStarted=false;
-    const normalizeBase = base => String(base).replace(/\/$/,'');
-    const keyFor = base => sessionStorage.getItem(`clip-key:${normalizeBase(base)}`) || '';
-    const rememberKey = (base,key) => { if(key)sessionStorage.setItem(`clip-key:${normalizeBase(base)}`,key); };
-    const authHeaders = base => { const key=keyFor(base); return key?{'x-api-key':key}:{}; };
-    const selectedNodes = select => [...select.selectedOptions].map(option=>demoNodes.find(node=>node.base===option.value)?.routingHost||new URL(option.value).host);
-    const nodeForHost = host => demoNodes.find(node=>(node.routingHost||new URL(node.base).host).toLowerCase()===String(host).toLowerCase());
-    const routeFor = record => record?.id.match(/^clip:\/\/([^/]+)\/([^/]+)\/([^/]+)$/);
-    const addActivity = (message,level='') => { const item=document.createElement('div'); item.className=`activity-item ${level}`; item.innerHTML=`${escapeHtml(message)}<time>${new Intl.DateTimeFormat(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date())}</time>`; $('activity-feed').prepend(item); while($('activity-feed').children.length>20)$('activity-feed').lastElementChild.remove(); };
-    const notify = (message,level='') => { addActivity(message,level); const toast=document.createElement('div'); toast.className=`toast ${level}`; toast.textContent=message; $('toasts').append(toast); setTimeout(()=>toast.remove(),5000); };
-    const searchable = record => JSON.stringify(record.subject || {}).toLowerCase();
-    const recordCodes = record => { const subject=record.subject || {}; return [subject.serial_number,subject.model_number,subject.site?.ifc_guid,subject.batch,subject.project,subject.name].filter(Boolean); };
-    const matches = (record, query) => query.toLowerCase().split(/\s+/).filter(Boolean).every(term => searchable(record).includes(term) || record.id.toLowerCase().includes(term));
-    const iconFor = record => ({instance:'A',type:'M',assertion:'E',collection:'C'})[record.record_kind] || 'R';
-
-    async function loadNode() { try { nodeInfo=await request('/v3/node/info'); $('health-dot').className='dot online'; $('node-label').textContent=`${title(nodeInfo.role)} node · online`; } catch { $('node-label').textContent='Network unavailable'; } }
-    async function loadCatalog(track=false) { try { const latest=(await request('/v3/records?limit=500',{headers:authHeaders(location.origin)})).items; if(track){latest.forEach(record=>{const previous=recordVersions.get(record.id);if(previous&&record.version>previous)notify(`${record.subject.name} propagated to client at version ${record.version}`);else if(recordVersions.size&&previous===undefined)notify(`${record.subject.name} arrived on the client node`);recordVersions.set(record.id,record.version);});}else{latest.forEach(record=>recordVersions.set(record.id,record.version));} catalog=latest; } catch(error) { if(!monitoringStarted)showError(error.message); } }
-    async function monitorNodes() { const checks=await Promise.all(demoNodes.map(async node=>{let forced=false;try{forced=(await request(`${node.base}/v3/node/offline`)).offline;}catch{} if(forced)return {node,status:'forced',forced:true}; try{const info=await request(`${node.base}/v3/node/info`);node.routingHost=info.routing_host;return {node,status:'alive',info,forced:false};}catch{return {node,status:'offline',forced:false};}})); let gossip=[]; try{gossip=await request('/v3/gossip/peers');}catch{} checks.forEach(check=>{const peer=gossip.find(item=>(check.node.routingHost||new URL(check.node.base).host).toLowerCase()===String(item.node_id).toLowerCase());if(check.status==='alive'&&peer?.status==='suspect')check.status='suspect';const previous=nodeStates.get(check.node.base);if(previous&&previous!==check.status)notify(`${check.node.name} node is now ${check.status==='forced'?'offline (simulated)':check.status}`,check.status==='alive'?'':check.status==='offline'||check.status==='forced'?'error':'warn');nodeStates.set(check.node.base,check.status);}); $('node-grid').innerHTML=checks.map(({node,status})=>`<div class="node-card ${status==='forced'?'offline':status}"><i></i><div><strong>${escapeHtml(node.name)}</strong><small>${escapeHtml(node.routingHost||new URL(node.base).host)} · ${escapeHtml(status==='forced'?'offline (simulated)':status)}</small></div></div>`).join(''); renderHealthPanel(checks); }
-    async function toggleNodeOffline(node, makeOffline) { const key=keyFor(node.base)||node.demoKey||''; try { await request(`${node.base}/v3/node/offline`,{method:'POST',headers:{'content-type':'application/json','x-api-key':key},body:JSON.stringify({offline:makeOffline})}); rememberKey(node.base,key); notify(makeOffline?`${node.name} taken offline — dependent lookups will now serve from replica cache`:`${node.name} brought back online`,makeOffline?'warn':''); await monitorNodes(); } catch(error) { notify(`Could not toggle ${node.name}: ${error.message}`,'error'); } }
-    function renderHealthPanel(checks) { $('health-grid').innerHTML=checks.map(({node,status})=>{const label=status==='forced'?'Offline (simulated)':title(status);const action=status==='forced'?`<button type="button" class="health-toggle" data-base="${escapeHtml(node.base)}" data-offline="false">Bring online</button>`:`<button type="button" class="secondary health-toggle" data-base="${escapeHtml(node.base)}" data-offline="true">Take offline</button>`;return `<div class="health-card ${status}"><header><i></i><strong>${escapeHtml(node.name)}</strong></header><small>${escapeHtml(node.routingHost||new URL(node.base).host)} · ${escapeHtml(title(node.role))}</small><small>Status: ${escapeHtml(label)}</small>${action}</div>`;}).join(''); }
-    $('health-grid').onclick=event=>{const button=event.target.closest('.health-toggle');if(!button)return;const node=demoNodes.find(item=>item.base===button.dataset.base);if(node)toggleNodeOffline(node,button.dataset.offline==='true');};
-    $('toggle-health').onclick=()=>$('network-health').classList.toggle('hidden');
-
-    function showError(message) { $('suggestions').innerHTML=`<div class="suggestion"><div class="suggestion-icon">!</div><div><strong>Unable to find asset</strong><small>${escapeHtml(message)}</small></div></div>`; $('suggestions').classList.add('open'); }
-    function showSuggestions(raw) { const query=raw.trim(); const results=(query ? catalog.filter(record=>matches(record,query)) : catalog).slice(0,8); $('suggestions').innerHTML=results.map(record=>`<div class="suggestion" data-id="${escapeHtml(record.id)}"><div class="suggestion-icon">${iconFor(record)}</div><div><strong>${escapeHtml(record.subject.name)}</strong><small>${escapeHtml(recordCodes(record).slice(0,3).join(' · ') || title(record.record_kind))}</small></div><span class="badge">${title(record.record_kind)}</span></div>`).join('') || '<div class="suggestion"><div class="suggestion-icon">?</div><div><strong>No indexed match</strong><small>Paste a complete network code to resolve it directly.</small></div></div>'; $('suggestions').classList.add('open'); document.querySelectorAll('.suggestion[data-id]').forEach(item=>item.onclick=()=>selectRecord(item.dataset.id)); }
-    function graphRootFor(id) { return catalog.find(record=>record.record_kind==='instance' && (record.id===id || record.relationships.some(edge=>edge.target===id)))?.id || id; }
-    async function selectRecord(id) { $('lookup').value=catalog.find(record=>record.id===id)?.subject.name || id; $('suggestions').classList.remove('open'); await resolveGraph(graphRootFor(id)); }
-    async function findAsset() { const query=$('lookup').value.trim(); if(!query)return showSuggestions(''); const exact=catalog.find(record=>record.id===query); const candidates=catalog.filter(record=>matches(record,query)); if(exact)return resolveGraph(exact.id); if(candidates.length===1)return resolveGraph(candidates[0].id); if(candidates.length>1)return showSuggestions(query); if(query.startsWith('clip://'))return resolveGraph(query); showSuggestions(query); }
-    const stageFor = (record,edge) => title(record.subject.event_type || ({defines_type:'manufactured',custody_event:'supply',procured_under:'procured',commissioned_by:'commissioned',inspected_by:'inspected',maintained_by:'in use'})[edge?.relation_type] || record.record_kind);
-    const stageOrder = (record,edge) => ({defines_type:10,custody_event:20,procured_under:30,commissioned_by:40,inspected_by:50,maintained_by:60}[edge?.relation_type] || 45);
-    const eventDate = (record,edge) => record.subject.effective_at || edge?.effective_from || edge?.asserted_at || record.created_at;
-    function claims(record,edge) { const hidden=new Set(['name','documents','attributes','site','manufacturer','model_number','serial_number','event_type','effective_at']); const values=[]; Object.entries(record.subject||{}).forEach(([key,value])=>{if(!hidden.has(key)&&value!=null&&typeof value!=='object')values.push(`${title(key)}: ${value}`);}); Object.entries(edge?.claims||{}).forEach(([key,value])=>values.push(`${title(key)}: ${value}`)); return [...new Set(values)].slice(0,4).join(' · '); }
-    function allDocuments(graph) { const docs=[]; Object.values(graph.nodes).forEach(({record})=>(record.subject.documents||[]).forEach(doc=>docs.push({...doc,issuer:record.subject.name}))); graph.edges.forEach(edge=>(edge.evidence||[]).forEach(doc=>docs.push({...doc,issuer:graph.nodes[edge.target]?.record.subject.name||title(edge.role)}))); return docs; }
-    function factEntries(record) { const subject=record.subject,site=subject.site||{},attributes=subject.attributes||{}; return [['Owner',subject.asset_owner],['Manufacturer',subject.manufacturer],['Model number',subject.model_number],['Serial number',subject.serial_number],['Building',site.building],['Storey',site.storey],['Space',site.space],['IFC GUID',site.ifc_guid],...Object.entries(attributes).map(([key,value])=>[title(key),value])].filter(([,value])=>value!==undefined&&value!==null&&value!==''); }
-    function render(graph) { lastGraph=graph; const wrappers=Object.values(graph.nodes),nodes=wrappers.map(item=>item.record); const instance=graph.nodes[graph.root]?.record || nodes.find(record=>record.record_kind==='instance') || nodes[0]; if(!instance)return; activeRecord=instance; const route=instance.id.match(/^clip:\/\/([^/]+)\//)?.[1]; $('edit-record').classList.toggle('hidden',!nodeInfo || route?.toLowerCase()!==nodeInfo.routing_host.toLowerCase()); $('upload-document').disabled=!nodeForHost(route); const typeRecord=nodes.find(record=>record.record_kind==='type'), modelSubject=typeRecord?.subject||instance.subject, subject=instance.subject, site=subject.site||{}; const related=nodes.filter(record=>record.id!==instance.id).map(record=>({record,edge:graph.edges.find(item=>item.target===record.id)})).sort((a,b)=>stageOrder(a.record,a.edge)-stageOrder(b.record,b.edge) || new Date(eventDate(a.record,a.edge))-new Date(eventDate(b.record,b.edge)));
-      $('empty').classList.add('hidden'); $('dossier').classList.add('active'); $('asset-kind').textContent=title(instance.record_kind==='instance'?'Physical asset':instance.record_kind); $('asset-name').textContent=subject.name; $('asset-subtitle').textContent=[subject.asset_owner,site.building,site.space].filter(Boolean).join(' · ')||'Verified asset network record'; $('trust-label').textContent=`${title(instance.availability.visibility)} · ${nodes.length} records verified${graph.complete?'':' · partial graph'}`; $('serial').textContent=subject.serial_number||subject.asset_tag||'Not recorded'; $('model').textContent=[modelSubject.manufacturer,modelSubject.model_number].filter(Boolean).join(' · ')||'Not recorded'; $('location').textContent=[site.building,site.storey,site.space].filter(Boolean).join(' · ')||'Not recorded'; $('position').textContent=related.length?stageFor(related.at(-1).record,related.at(-1).edge):'Registered'; $('updated').textContent=`Updated ${formatDate(instance.updated_at)}`;
-      const facts=factEntries(instance); if(typeRecord)factEntries(typeRecord).forEach(entry=>{if(!facts.some(existing=>existing[0]===entry[0]))facts.push(entry);}); $('facts').innerHTML=facts.length?facts.map(([key,value])=>`<div class="fact"><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value==='object'?JSON.stringify(value):value)}</dd></div>`).join(''):'<div class="fallback">No additional properties published.</div>';
-      const timeline=[...related,{record:instance,edge:null,stage:'in use'}]; $('timeline-count').textContent=`${timeline.length} verified stages`; $('timeline').innerHTML=timeline.map((item,index)=>`<article class="event clickable" data-id="${escapeHtml(item.record.id)}"><div class="event-marker">${index+1}</div><div><h4>${escapeHtml(item.record.subject.name)}</h4><p>${escapeHtml(claims(item.record,item.edge)||`${title(item.record.record_kind)} record contributed by ${title(item.edge?.role||'owner')}`)}</p><span class="stage">${escapeHtml(title(item.stage)||stageFor(item.record,item.edge))}</span></div><time>${escapeHtml(formatDate(eventDate(item.record,item.edge)))}</time></article>`).join('');
-      const docs=allDocuments(graph); $('doc-count').textContent=`${docs.length} available`;
-      renderDocuments(docs);
-      $('network-count').textContent=`${nodes.length} authorities`; $('network').innerHTML=nodes.map(record=>{const edge=graph.edges.find(item=>item.target===record.id);const wrapper=graph.nodes[record.id];const trust=trustBadge(wrapper);return `<div class="network-row clickable" data-id="${escapeHtml(record.id)}"><i class="swatch ${trust.swatch}"></i><div><strong>${escapeHtml(record.subject.name)}</strong><small>${escapeHtml(title(edge?.role||record.record_kind))} · version ${record.version}</small></div><span class="badge ${trust.badgeClass}">${escapeHtml(trust.label)}</span></div>`;}).join(''); $('technical').innerHTML=`Root record<br>${escapeHtml(graph.root)}<br><br>Resolved ${escapeHtml(formatDate(graph.resolved_at))}<br>${graph.edges.length} accepted relationships · ${graph.failures.length} unavailable records`;
-      renderLedger(graph);
-    }
-    function renderDocuments(docs) { $('documents').innerHTML=docs.length?docs.map(doc=>`<article class="doc"><div class="doc-icon">${escapeHtml((doc.media_type.split('/')[1]||'FILE').slice(0,4).toUpperCase())}</div><div><strong>${escapeHtml(doc.name||'Supporting evidence')}</strong><small>${escapeHtml(doc.issuer)} · ${escapeHtml(doc.media_type)} · ${escapeHtml(doc.sha256.slice(0,10))}</small><div id="dist-${escapeHtml(doc.sha256)}" class="doc-distribution hidden"></div></div><div class="doc-actions"><button class="secondary open-document" data-sha="${escapeHtml(doc.sha256)}" type="button">Open</button><button class="secondary check-distribution" data-sha="${escapeHtml(doc.sha256)}" type="button">Where is this stored?</button></div></article>`).join(''):'<div class="fallback">No files are attached yet. Manufacturer documents and relationship evidence will appear here with their source and verification status.</div>'; }
-    async function checkDistribution(sha,button) { const container=document.getElementById(`dist-${sha}`); if(!container)return; if(!container.classList.contains('hidden')){container.classList.add('hidden');container.innerHTML='';return;} container.classList.remove('hidden'); container.innerHTML='<div class="dist-row"><i></i><span>Checking replicas across the network…</span></div>'; button.disabled=true; try { const results=await Promise.all(demoNodes.map(async node=>{ try { const response=await fetch(`${node.base}/v3/documents/${sha}`,{headers:authHeaders(node.base)}); await response.body?.cancel().catch(()=>{}); if(response.status===200)return {node,state:'stored'}; if(response.status===403)return {node,state:'restricted'}; return {node,state:'absent'}; } catch { return {node,state:'unreachable'}; } })); const labels={stored:'Has a replica',restricted:'Access restricted',absent:'No replica',unreachable:'Unreachable'}; const dot={stored:'',restricted:'stale',absent:'cache',unreachable:'stale'}; container.innerHTML=results.map(({node,state})=>`<div class="dist-row"><i class="${dot[state]}"></i><span>${escapeHtml(node.name)}</span><span class="badge ${dot[state]}">${labels[state]}</span></div>`).join(''); } finally { button.disabled=false; } }
-    function trustBadge(wrapper) { if(!wrapper)return {label:'Verified',badgeClass:'',swatch:''}; if(wrapper.status==='verified_stale')return {label:'Stale copy — origin unreachable',badgeClass:'stale',swatch:'stale'}; if(wrapper.source==='local_cache')return {label:'Cached (fresh)',badgeClass:'cache',swatch:'cache'}; if(wrapper.source==='local_authoritative')return {label:'Authoritative',badgeClass:'',swatch:''}; return {label:'Verified',badgeClass:'',swatch:''}; }
-    function renderLedger(graph) { const wrappers=Object.entries(graph.nodes); $('ledger-count').textContent=`${wrappers.length} records tracked`; $('ledger').innerHTML=wrappers.map(([id,wrapper])=>{const trust=trustBadge(wrapper);return `<div class="network-row clickable" data-id="${escapeHtml(id)}"><i class="swatch ${trust.swatch}"></i><div><strong>${escapeHtml(wrapper.record.subject.name)}</strong><small>${escapeHtml(wrapper.source)} · verified ${escapeHtml(formatDate(wrapper.verified_at))}</small></div><span class="badge ${trust.badgeClass}">${escapeHtml(trust.label)}</span></div>`;}).join('')||'<div class="fallback">Resolve an asset to see its live replication ledger.</div>'; if(graph.failures.length){$('failure-banner').classList.remove('hidden');$('failure-banner').textContent=`${graph.failures.length} record(s) unavailable — showing last verified cached copy where possible: ${graph.failures.map(item=>item.clip).join(', ')}`;}else{$('failure-banner').classList.add('hidden');}
-    }
-    function openDetail(id) { const wrapper=lastGraph?.nodes?.[id]; if(!wrapper)return; const record=wrapper.record, edge=lastGraph.edges.find(item=>item.target===id); const trust=trustBadge(wrapper), host=record.id.match(/^clip:\/\/([^/]+)\//)?.[1]||''; $('detail-title').textContent=record.subject.name; $('detail-subtitle').textContent=`${title(record.record_kind)} · ${trust.label} · authority ${host}`; const facts=factEntries(record); $('detail-facts').innerHTML=facts.length?facts.map(([key,value])=>`<div class="fact"><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value==='object'?JSON.stringify(value):value)}</dd></div>`).join(''):'<div class="fallback">No additional properties published.</div>'; if(edge){$('detail-edge').classList.remove('hidden');$('detail-edge-facts').innerHTML=[['Role',title(edge.role)],['Relation',title(edge.relation_type)],['State',title(edge.state)],...Object.entries(edge.claims||{}).map(([key,value])=>[title(key),value])].map(([key,value])=>`<div class="fact"><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value==='object'?JSON.stringify(value):value)}</dd></div>`).join('');$('detail-proofs').innerHTML=edge.proofs.map(proof=>`<div class="proof-card"><strong>${escapeHtml(title(proof.proof_purpose))}</strong>${escapeHtml(proof.verification_method)} · signed ${escapeHtml(formatDate(proof.created))}</div>`).join('');}else{$('detail-edge').classList.add('hidden');} $('detail-raw').textContent=JSON.stringify(edge?{record,relationship:edge}:{record},null,2); $('detail-dialog').showModal(); }
-    $('timeline').onclick=event=>{const el=event.target.closest('.event[data-id]');if(el)openDetail(el.dataset.id);};
-    $('network').onclick=event=>{const el=event.target.closest('.network-row[data-id]');if(el)openDetail(el.dataset.id);};
-    $('ledger').onclick=event=>{const el=event.target.closest('.network-row[data-id]');if(el)openDetail(el.dataset.id);};
-    async function resolveGraph(root) { $('find').disabled=true; const key=keyFor(location.origin); try { const graph=await request('/v3/resolve-graph',{method:'POST',headers:{'content-type':'application/json',...(key?{'x-api-key':key}:{})},body:JSON.stringify({root,depth:3,max_nodes:100,view:key?'confidential':'public'})}); render(graph); await loadCatalog(); } catch(error) { showError(error.message); } finally { $('find').disabled=false; } }
-    function closeEdit() { $('edit-dialog').close(); $('edit-message').textContent=''; }
-    $('edit-record').onclick=()=>{ const rootNode=nodeForHost(routeFor(activeRecord)?.[1]); $('edit-api-key').value=keyFor(rootNode?.base||location.origin); $('edit-public').checked=activeRecord.availability.visibility==='public'; [...$('edit-allowed').options].forEach(option=>option.selected=activeRecord.availability.allowed_nodes.includes(new URL(option.value).host)); $('edit-subject').value=JSON.stringify(activeRecord.subject,null,2); $('edit-dialog').showModal(); };
-    $('close-edit').onclick=$('cancel-edit').onclick=closeEdit;
-    $('edit-form').onsubmit=async event=>{ event.preventDefault(); const match=activeRecord?.id.match(/^clip:\/\/[^/]+\/([^/]+)\/([^/]+)$/),rootNode=nodeForHost(routeFor(activeRecord)?.[1]); if(!match||!rootNode)return; $('save-edit').disabled=true; $('edit-message').textContent=''; try { const subject=JSON.parse($('edit-subject').value),key=$('edit-api-key').value; const availability={...activeRecord.availability,visibility:$('edit-public').checked?'public':'restricted',allowed_nodes:$('edit-public').checked?[]:selectedNodes($('edit-allowed'))}; const updated=await request(`${rootNode.base}/v3/records/${match[1]}/${match[2]}`,{method:'PUT',headers:{'content-type':'application/json','x-api-key':key},body:JSON.stringify({subject,controller:activeRecord.controller,relationships:activeRecord.relationships,availability})}); rememberKey(rootNode.base,key); closeEdit(); await loadCatalog(); await resolveGraph(updated.id); } catch(error) { $('edit-message').className='message error'; $('edit-message').textContent=error.message; } finally { $('save-edit').disabled=false; } };
-    function fillNodeSelect(select,nodes=demoNodes){select.innerHTML=nodes.map(node=>`<option value="${escapeHtml(node.base)}">${escapeHtml(node.name)} · ${escapeHtml(title(node.role))}</option>`).join('');}
-    function syncKey(select,keyInput){const node=demoNodes.find(item=>item.base===select.value);keyInput.value=keyFor(select.value)||node?.demoKey||'';}
-    function fillAllowed(select){select.innerHTML=demoNodes.map(node=>`<option value="${escapeHtml(node.base)}">${escapeHtml(node.name)} · ${escapeHtml(new URL(node.base).host)}</option>`).join('');}
-    fillNodeSelect($('create-node')); $('create-node').value='http://127.0.0.1:8104'; fillNodeSelect($('associate-node'),demoNodes.filter(node=>node.role!=='owner'&&node.role!=='relay')); fillNodeSelect($('associate-root-node'),demoNodes.filter(node=>node.role!=='relay')); fillAllowed($('create-allowed')); fillAllowed($('edit-allowed')); syncKey($('create-node'),$('create-api-key'));
-    $('create-node').onchange=()=>syncKey($('create-node'),$('create-api-key'));
-    $('create-asset').onclick=()=>$('create-dialog').showModal();
-    $('create-kind').onchange=()=>{$('create-public').checked=$('create-kind').value==='type';};
-    $('create-form').onsubmit=async event=>{event.preventDefault();$('create-submit').disabled=true;$('create-message').textContent='';try{const attributes=JSON.parse($('create-attributes').value||'{}'),base=$('create-node').value,key=$('create-api-key').value;const subject={name:$('create-name').value,serial_number:$('create-serial').value||null,asset_owner:$('create-owner').value||null,site:{building:$('create-building').value||null,storey:$('create-storey').value||null,space:$('create-space').value||null},attributes};const isPublic=$('create-public').checked,availability={visibility:isPublic?'public':'restricted',allowed_nodes:isPublic?[]:selectedNodes($('create-allowed'))};const record=await request(`${base}/v3/records`,{method:'POST',headers:{'content-type':'application/json','x-api-key':key},body:JSON.stringify({record_kind:$('create-kind').value,subject,availability})});rememberKey(base,key);$('create-dialog').close();notify(`${record.subject.name} created as ${record.availability.visibility} data`);await loadCatalog(true);await resolveGraph(record.id);}catch(error){$('create-message').className='message error';$('create-message').textContent=error.message;}finally{$('create-submit').disabled=false;}};
-    let associateStakeholderRecords=[], associateRootInstances=[];
-    async function loadAssociationTargets(){const node=demoNodes.find(item=>item.base===$('associate-node').value);$('associate-target').innerHTML='<option>Loading records...</option>';try{const key=$('associate-api-key').value;const items=(await request(`${node.base}/v3/records?limit=500`,{headers:key?{'x-api-key':key}:{}})).items;associateStakeholderRecords=items;$('associate-target').innerHTML=items.map(record=>`<option value="${escapeHtml(record.id)}">${escapeHtml(record.subject.name)} · ${escapeHtml(title(record.record_kind))} · ${escapeHtml(record.availability.visibility)}</option>`).join('')||'<option value="">No accessible records available</option>';}catch(error){associateStakeholderRecords=[];$('associate-target').innerHTML='<option value="">Node unavailable</option>';} renderNestedTargetOptions();};
-    async function loadRootInstances(){const node=demoNodes.find(item=>item.base===$('associate-root-node').value);$('associate-root-clip').innerHTML='<option>Loading records...</option>';try{const key=$('associate-root-key').value;const items=(await request(`${node.base}/v3/records?limit=500`,{headers:key?{'x-api-key':key}:{}})).items.filter(record=>record.record_kind==='instance');associateRootInstances=items;$('associate-root-clip').innerHTML=items.map(record=>`<option value="${escapeHtml(record.id)}">${escapeHtml(record.subject.name)} · ${escapeHtml(recordCodes(record).slice(0,2).join(' · ')||record.availability.visibility)}</option>`).join('')||'<option value="">No instance records available</option>';}catch(error){associateRootInstances=[];$('associate-root-clip').innerHTML='<option value="">Node unavailable</option>';} updateStakeholderKeyRequirement();}
-    function updateStakeholderKeyRequirement(){const selected=associateRootInstances.find(record=>record.id===$('associate-root-clip').value),stakeholder=demoNodes.find(item=>item.base===$('associate-node').value),isPublic=selected?.availability.visibility==='public';$('associate-api-key').required=!isPublic;$('associate-api-key').disabled=isPublic;if(isPublic&&stakeholder)$('associate-api-key').value=keyFor(stakeholder.base)||stakeholder.demoKey||'';$('associate-api-key-hint').textContent=isPublic?'Public data — signing key applied automatically, nothing to enter.':'Required to sign as this stakeholder.';}
-    function nestedTargetOptions(selectedId){return associateStakeholderRecords.map(record=>`<option value="${escapeHtml(record.id)}" ${record.id===selectedId?'selected':''}>${escapeHtml(record.subject.name)} · ${escapeHtml(title(record.record_kind))}</option>`).join('')||'<option value="">No accessible records</option>';}
-    function renderNestedTargetOptions(){document.querySelectorAll('#associate-nested-list .nested-target').forEach(select=>{const current=select.value;select.innerHTML=nestedTargetOptions(current);});}
-    function addNestedRow(){const row=document.createElement('div');row.className='nested-row';row.innerHTML=`<select class="nested-target">${nestedTargetOptions()}</select><input class="nested-note" placeholder="Note for this item (optional)"><button type="button" class="secondary nested-remove">Remove</button>`;row.querySelector('.nested-remove').onclick=()=>row.remove();$('associate-nested-list').appendChild(row);}
-    $('associate-add-nested').onclick=addNestedRow;
-    $('associate-node').onchange=()=>{syncKey($('associate-node'),$('associate-api-key'));loadAssociationTargets();updateStakeholderKeyRequirement();};
-    $('associate-api-key').onchange=loadAssociationTargets;
-    $('associate-root-node').onchange=()=>{syncKey($('associate-root-node'),$('associate-root-key'));loadRootInstances();};
-    $('associate-root-key').onchange=loadRootInstances;
-    $('associate-root-clip').onchange=updateStakeholderKeyRequirement;
-    $('associate-record').onclick=async()=>{const currentRoot=activeRecord?.record_kind==='instance'?nodeForHost(routeFor(activeRecord)?.[1]):null;if(currentRoot)$('associate-root-node').value=currentRoot.base;syncKey($('associate-root-node'),$('associate-root-key'));syncKey($('associate-node'),$('associate-api-key'));$('associate-nested-list').innerHTML='';$('associate-dialog').showModal();await Promise.all([loadRootInstances(),loadAssociationTargets()]);if(currentRoot&&activeRecord)$('associate-root-clip').value=activeRecord.id;updateStakeholderKeyRequirement();};
-    $('associate-form').onsubmit=async event=>{event.preventDefault();const stakeholder=demoNodes.find(item=>item.base===$('associate-node').value),rootNode=demoNodes.find(item=>item.base===$('associate-root-node').value),rootClip=$('associate-root-clip').value.trim();if(!stakeholder||!rootNode||!rootClip)return;$('associate-submit').disabled=true;$('associate-message').textContent='';try{const stakeholderKey=$('associate-api-key').value,rootKey=$('associate-root-key').value;const primaryTarget=$('associate-target').value;const proposal=await request(`${stakeholder.base}/v3/relationships/proposals`,{method:'POST',headers:{'content-type':'application/json','x-api-key':stakeholderKey},body:JSON.stringify({source:rootClip,target:primaryTarget,role:stakeholder.role,relation_type:stakeholder.relation,claims:JSON.parse($('associate-claims').value||'{}')})});const nestedRows=[...document.querySelectorAll('#associate-nested-list .nested-row')].map(row=>({target:row.querySelector('.nested-target').value,note:row.querySelector('.nested-note').value})).filter(row=>row.target);const nestedProposals=[];for(const row of nestedRows){nestedProposals.push(await request(`${stakeholder.base}/v3/relationships/proposals`,{method:'POST',headers:{'content-type':'application/json','x-api-key':stakeholderKey},body:JSON.stringify({source:rootClip,target:row.target,role:stakeholder.role,relation_type:stakeholder.relation,claims:row.note?{note:row.note}:{},references:[primaryTarget]})}));}const batch=await request(`${rootNode.base}/v3/relationships/accept-batch`,{method:'POST',headers:{'content-type':'application/json','x-api-key':rootKey},body:JSON.stringify({proposals:[proposal,...nestedProposals]})});rememberKey(stakeholder.base,stakeholderKey);rememberKey(rootNode.base,rootKey);$('associate-dialog').close();const total=1+nestedProposals.length;if(batch.errors.length)notify(`${stakeholder.name} association: ${batch.accepted.length}/${total} accepted, ${batch.errors.length} failed`,'warn');else notify(nestedProposals.length?`${stakeholder.name} association and ${nestedProposals.length} nested item(s) accepted in one cascade`:`${stakeholder.name} association signed by both authorities`);await loadCatalog(true);await resolveGraph(rootClip);}catch(error){$('associate-message').className='message error';$('associate-message').textContent=error.message;}finally{$('associate-submit').disabled=false;}};
-
-    // --- Guided scenario wizard: narrates the propose -> sign -> accept flow using the same endpoints as the manual Associate dialog ---
-    let scenario={};
-    function showWizardStep(n){[0,1,2].forEach(i=>{$(`wizard-step-${i}`).classList.toggle('active',i===n);$(`wizard-dot-${i}`).classList.toggle('done',i<=n);});}
-    function fillScenarioSelects(){fillNodeSelect($('scenario-stakeholder'),demoNodes.filter(node=>node.role!=='owner'&&node.role!=='relay'));fillNodeSelect($('scenario-owner'),demoNodes.filter(node=>node.role==='owner'));const instances=catalog.filter(record=>record.record_kind==='instance');$('scenario-target').innerHTML=instances.map(record=>`<option value="${escapeHtml(record.id)}">${escapeHtml(record.subject.name)}</option>`).join('')||'<option value="">No instance records yet — create one first</option>';}
-    $('run-scenario').onclick=()=>{fillScenarioSelects();scenario={};$('scenario-message').textContent='';$('scenario-message-1').textContent='';$('scenario-message-2').textContent='';$('scenario-proposal-result').classList.add('hidden');$('scenario-accept-result').classList.add('hidden');$('wizard-next-1').disabled=true;$('wizard-finish').disabled=true;showWizardStep(0);$('scenario-dialog').showModal();};
-    $('wizard-next-0').onclick=async()=>{const stakeholder=demoNodes.find(node=>node.base===$('scenario-stakeholder').value),owner=demoNodes.find(node=>node.base===$('scenario-owner').value),target=catalog.find(record=>record.id===$('scenario-target').value);if(!stakeholder||!owner||!target){$('scenario-message').className='message error';$('scenario-message').textContent='Select a stakeholder, owner, and instance record.';return;}$('wizard-next-0').disabled=true;$('scenario-message').textContent='';try{const stakeholderKey=keyFor(stakeholder.base)||stakeholder.demoKey;const assertionRecord=await request(`${stakeholder.base}/v3/records`,{method:'POST',headers:{'content-type':'application/json','x-api-key':stakeholderKey},body:JSON.stringify({record_kind:'assertion',subject:{name:`${title(stakeholder.relation)} — ${target.subject.name}`,event_type:stakeholder.relation,effective_at:new Date().toISOString()},availability:{visibility:'public',allowed_nodes:[]}})});rememberKey(stakeholder.base,stakeholderKey);scenario={stakeholder,owner,target,proposalPayload:{source:target.id,target:assertionRecord.id,role:stakeholder.role,relation_type:stakeholder.relation,claims:{demo:'guided-scenario'}}};$('scenario-step1-narration').textContent=`${stakeholder.name} independently signs a claim about ${target.subject.name}. This request is sent to ${stakeholder.name}'s own node and signed with its private key — the owner has no part in this step.`;$('scenario-proposal-payload').textContent=JSON.stringify(scenario.proposalPayload,null,2);showWizardStep(1);}catch(error){$('scenario-message').className='message error';$('scenario-message').textContent=error.message;}finally{$('wizard-next-0').disabled=false;}};
-    $('wizard-back-1').onclick=()=>showWizardStep(0);
-    $('wizard-propose').onclick=async()=>{$('wizard-propose').disabled=true;$('scenario-message-1').textContent='';try{const key=keyFor(scenario.stakeholder.base)||scenario.stakeholder.demoKey;const proposal=await request(`${scenario.stakeholder.base}/v3/relationships/proposals`,{method:'POST',headers:{'content-type':'application/json','x-api-key':key},body:JSON.stringify(scenario.proposalPayload)});rememberKey(scenario.stakeholder.base,key);scenario.proposal=proposal;$('scenario-proof-1').textContent=`${proposal.proofs[0].verification_method} · signed ${formatDate(proposal.proofs[0].created)}`;$('scenario-proposal-result').classList.remove('hidden');$('wizard-next-1').disabled=false;notify(`${scenario.stakeholder.name} signed a proposal (state: proposed)`);}catch(error){$('scenario-message-1').className='message error';$('scenario-message-1').textContent=error.message;}finally{$('wizard-propose').disabled=false;}};
-    $('wizard-next-1').onclick=()=>{$('scenario-step2-narration').textContent=`${scenario.owner.name} now independently reviews the signed proposal from ${scenario.stakeholder.name}. Accepting fetches ${scenario.stakeholder.name}'s public key from its descriptor, verifies the signature, then appends a second, independent proof and republishes the instance.`;$('scenario-accept-payload').textContent=JSON.stringify(scenario.proposal,null,2);showWizardStep(2);};
-    $('wizard-back-2').onclick=()=>showWizardStep(1);
-    $('wizard-accept').onclick=async()=>{$('wizard-accept').disabled=true;$('scenario-message-2').textContent='';try{const key=keyFor(scenario.owner.base)||scenario.owner.demoKey;const accepted=await request(`${scenario.owner.base}/v3/relationships/accept`,{method:'POST',headers:{'content-type':'application/json','x-api-key':key},body:JSON.stringify(scenario.proposal)});rememberKey(scenario.owner.base,key);scenario.accepted=accepted;$('scenario-proof-a').textContent=`${accepted.proofs[0].verification_method} · signed ${formatDate(accepted.proofs[0].created)}`;$('scenario-proof-b').textContent=`${accepted.proofs[1].verification_method} · signed ${formatDate(accepted.proofs[1].created)}`;$('scenario-accept-result').classList.remove('hidden');$('wizard-finish').disabled=false;notify(`${scenario.owner.name} accepted the assertion — relationship now has 2 independent proofs`);}catch(error){$('scenario-message-2').className='message error';$('scenario-message-2').textContent=error.message;}finally{$('wizard-accept').disabled=false;}};
-    $('wizard-finish').onclick=async()=>{$('scenario-dialog').close();await loadCatalog(true);await resolveGraph(scenario.target.id);};
-
-    $('upload-document').onclick=()=>{const rootNode=nodeForHost(routeFor(activeRecord)?.[1]);$('upload-api-key').value=keyFor(rootNode?.base||'');$('upload-dialog').showModal();};
-    $('upload-form').onsubmit=async event=>{event.preventDefault();const file=$('upload-file').files[0],route=routeFor(activeRecord),rootNode=nodeForHost(route?.[1]);if(!file||!route||!rootNode)return;$('upload-submit').disabled=true;$('upload-message').textContent='';try{const key=$('upload-api-key').value;await request(`${rootNode.base}/v3/documents/upload/${route[2]}/${route[3]}`,{method:'POST',headers:{'content-type':file.type||'application/octet-stream','x-file-name':file.name,'x-api-key':key},body:file});rememberKey(rootNode.base,key);$('upload-dialog').close();notify(`${file.name} hashed, attached, and distributed by access policy`);await loadCatalog(true);await resolveGraph(activeRecord.id);}catch(error){$('upload-message').className='message error';$('upload-message').textContent=error.message;}finally{$('upload-submit').disabled=false;}};
-    $('documents').onclick=async event=>{const openButton=event.target.closest('.open-document');const distButton=event.target.closest('.check-distribution');if(distButton)return checkDistribution(distButton.dataset.sha,distButton);if(!openButton)return;try{const response=await fetch(`/v3/documents/${openButton.dataset.sha}`,{headers:authHeaders(location.origin)});if(!response.ok)throw new Error((await response.json().catch(()=>({}))).detail||`HTTP ${response.status}`);const url=URL.createObjectURL(await response.blob());open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);}catch(error){notify(error.message,'error');}};
-
-    function formatBytes(bytes) { if(bytes==null)return 'Unlimited'; if(bytes===0)return '0 B'; const units=['B','KB','MB','GB']; let value=bytes,index=0; while(value>=1024&&index<units.length-1){value/=1024;index++;} return `${value.toFixed(value<10&&index>0?1:0)} ${units[index]}`; }
-    async function monitorStorage() { const checks=await Promise.all(demoNodes.map(async node=>{ let info=null,storage=null; try{info=await request(`${node.base}/v3/node/info`);}catch{} const key=keyFor(node.base)||node.demoKey||''; try{storage=await request(`${node.base}/v3/node/storage`,{headers:{'x-api-key':key}});}catch{} return {node,info,storage}; })); renderStoragePanel(checks); }
-    function renderStoragePanel(checks) { $('storage-grid').innerHTML=checks.map(({node,info,storage})=>{ const optedIn=!!info?.encrypted_storage_opt_in; const statusClass=info==null?'offline':optedIn?'':'suspect'; const usagePct=storage?.capacity_bytes?Math.min(100,Math.round((storage.used_bytes/storage.capacity_bytes)*100)):0; const action=info==null?'':`<button type="button" class="secondary storage-toggle" data-base="${escapeHtml(node.base)}" data-optin="${optedIn?'false':'true'}">${optedIn?'Opt out':'Opt in'}</button>`; return `<div class="health-card ${statusClass}"><header><i></i><strong>${escapeHtml(node.name)}</strong></header><small>${escapeHtml(title(node.role))} · ${escapeHtml(optedIn?'opted in to hold encrypted fragments for peers':'not opted in — no peer fragments stored here')}</small>${info?`<small>Capacity ${escapeHtml(formatBytes(storage?.capacity_bytes))} · used ${escapeHtml(formatBytes(storage?.used_bytes))}${storage?.fragment_count!=null?` · ${storage.fragment_count} fragments`:''}</small>${storage?.capacity_bytes?`<div class="storage-bar"><i style="width:${usagePct}%"></i></div>`:''}`:'<small>Node unreachable</small>'}${action}</div>`; }).join(''); }
-    $('storage-grid').onclick=event=>{const button=event.target.closest('.storage-toggle');if(!button)return;const node=demoNodes.find(item=>item.base===button.dataset.base);if(node)toggleStorageOptIn(node,button.dataset.optin==='true');};
-    async function toggleStorageOptIn(node,makeOptIn) { const key=keyFor(node.base)||node.demoKey||''; try { await request(`${node.base}/v3/node/storage/opt-in`,{method:'POST',headers:{'content-type':'application/json','x-api-key':key},body:JSON.stringify({opt_in:makeOptIn})}); rememberKey(node.base,key); notify(makeOptIn?`${node.name} opted in to hold encrypted fragments for peers`:`${node.name} opted out of holding encrypted fragments`,makeOptIn?'':'warn'); await monitorStorage(); } catch(error) { notify(`Could not update ${node.name} storage setting: ${error.message}`,'error'); } }
-    $('toggle-storage').onclick=()=>{$('storage-panel').classList.toggle('hidden');if(!$('storage-panel').classList.contains('hidden'))monitorStorage();};
-    $('unlock-data').onclick=()=>{$('access-api-key').value=keyFor(location.origin);$('access-dialog').showModal();};
-    $('access-form').onsubmit=async event=>{event.preventDefault();$('access-message').textContent='';try{const key=$('access-api-key').value;await request('/v3/node/access',{headers:{'x-api-key':key}});rememberKey(location.origin,key);$('access-dialog').close();notify('Private records unlocked for this browser session');await loadCatalog();}catch(error){$('access-message').className='message error';$('access-message').textContent=error.message;}};
-    document.querySelectorAll('.dialog-close').forEach(button=>button.onclick=()=>button.closest('dialog').close());
-    $('lookup').oninput=event=>showSuggestions(event.target.value); $('lookup').onfocus=()=>showSuggestions($('lookup').value); $('lookup').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();findAsset();}if(event.key==='Escape')$('suggestions').classList.remove('open');}; $('find').onclick=findAsset; document.addEventListener('click',event=>{if(!event.target.closest('.search-shell'))$('suggestions').classList.remove('open');});
-    async function startMonitoring(){await loadNode();await Promise.all([loadCatalog(),monitorNodes()]);monitoringStarted=true;setInterval(monitorNodes,4000);setInterval(()=>loadCatalog(true),4000);} startMonitoring();
-  </script>
-</body>
+    <main>
+      <div
+        id="notice"
+        class="notice"
+        role="status"
+        aria-live="polite"
+        hidden
+      ></div>
+      <section
+        id="overview"
+        class="view active"
+        role="tabpanel"
+        aria-labelledby="tab-overview"
+      >
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">CONNECTED CONSTRUCTION</span>
+            <h1>Network overview</h1>
+          </div>
+          <span id="updated" class="muted"></span>
+        </div>
+        <div class="metrics">
+          <div>
+            <span class="metric-icon green"
+              ><i data-lucide="building-2"></i
+            ></span>
+            <div>
+              <span class="metric-label">Facilities / containers</span
+              ><strong id="facility-count">0</strong>
+            </div>
+          </div>
+          <div>
+            <span class="metric-icon blue"><i data-lucide="box"></i></span>
+            <div>
+              <span class="metric-label">Assets</span
+              ><strong id="asset-count">0</strong>
+            </div>
+          </div>
+          <div>
+            <span class="metric-icon amber"
+              ><i data-lucide="git-pull-request-arrow"></i
+            ></span>
+            <div>
+              <span class="metric-label">Data-source authorities</span
+              ><strong id="source-count">0</strong>
+            </div>
+          </div>
+          <div>
+            <span class="metric-icon neutral"
+              ><i data-lucide="badge-check"></i
+            ></span>
+            <div>
+              <span class="metric-label">Accepted transactions</span
+              ><strong id="transaction-count">0</strong>
+            </div>
+          </div>
+        </div>
+        <section class="network-section">
+          <div class="section-heading">
+            <div>
+              <h2>Authority network</h2>
+              <span class="muted"
+                >Resolved dependencies &amp; accepted contributions</span
+              >
+            </div>
+            <div class="segmented" role="group" aria-label="Network filter">
+              <button id="sources-mode" aria-pressed="true">Data sources</button
+              ><button id="peers-mode" aria-pressed="false">All peers</button>
+            </div>
+          </div>
+          <div class="network-layout">
+            <div class="network-stage">
+              <svg
+                id="network"
+                viewBox="0 0 900 430"
+                role="img"
+                aria-label="Authority data dependency diagram"
+              ></svg>
+              <div id="network-empty" class="network-empty" hidden>
+                No external data sources
+              </div>
+              <button
+                id="fit-network"
+                class="icon-button fit-button"
+                title="Fit network to view"
+                aria-label="Fit network to view"
+              >
+                <i data-lucide="scan"></i>
+              </button>
+              <div class="network-legend">
+                <span><b class="legend-line green"></b>Import</span
+                ><span><b class="legend-line amber"></b>Contribution</span
+                ><span><b class="legend-line blue"></b>Replica</span
+                ><span><b class="legend-line dashed"></b>Peer</span>
+              </div>
+            </div>
+            <aside class="source-panel">
+              <div class="source-panel-heading">
+                <span class="eyebrow">DATA ORIGINS</span
+                ><span id="origin-count" class="counter">0</span>
+              </div>
+              <div id="source-list"></div>
+              <div id="node-detail" class="node-detail" hidden></div>
+              <div id="peer-auth" class="auth-note" hidden>
+                <i data-lucide="lock-keyhole"></i
+                ><span>Peer membership requires local authorization.</span>
+              </div>
+            </aside>
+          </div>
+        </section>
+        <section class="portfolio-section">
+          <div class="section-heading">
+            <div>
+              <h2>Facility portfolio</h2>
+              <span id="portfolio-summary" class="muted"></span>
+            </div>
+            <button id="open-assets" class="text-button">
+              View all assets<i data-lucide="arrow-up-right"></i>
+            </button>
+          </div>
+          <div id="facility-portfolio" class="portfolio"></div>
+        </section>
+        <section class="recent-section">
+          <div class="section-heading">
+            <h2>Latest activity</h2>
+            <button id="open-activity" class="text-button">
+              All activity<i data-lucide="arrow-up-right"></i>
+            </button>
+          </div>
+          <div id="recent-activity"></div>
+        </section>
+      </section>
+      <section
+        id="assets"
+        class="view"
+        role="tabpanel"
+        aria-labelledby="tab-assets"
+        hidden
+      >
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">BUILT ENVIRONMENT</span>
+            <h1>Facilities &amp; assets</h1>
+          </div>
+          <label class="search"
+            ><i data-lucide="search"></i
+            ><input
+              id="asset-search"
+              type="search"
+              placeholder="Search name, path or serial"
+              aria-label="Search assets"
+          /></label>
+        </div>
+        <div class="asset-workspace">
+          <div class="entity-network-panel">
+            <div class="section-heading"><h2>Entity network</h2><div class="graph-tools">
+              <span id="entity-network-count" class="muted"></span>
+              <button id="fit-entities" class="icon-button" title="Fit entity network" aria-label="Fit entity network"><i data-lucide="maximize"></i></button>
+              <button id="new-entity" class="secondary"><i data-lucide="plus"></i>Create entity</button>
+            </div></div>
+            <svg id="entity-network" class="entity-network" role="group" aria-label="Entity hierarchy and product inheritance"></svg>
+          </div>
+          <aside class="tree-panel">
+            <div class="tree-heading">
+              <h2>Structure</h2>
+              <span id="tree-count" class="counter">0</span>
+            </div>
+            <div id="asset-tree"></div>
+          </aside>
+          <div class="asset-results">
+            <div class="result-toolbar">
+              <h2 id="asset-results-title">All assets</h2>
+              <span id="asset-results-count" class="muted"></span>
+            </div>
+            <div id="asset-list" class="asset-list"></div>
+          </div>
+          <aside id="asset-inspector" class="asset-inspector">
+            <div class="empty-inspector">
+              <i data-lucide="mouse-pointer-2"></i>
+              <h2>No asset selected</h2>
+            </div>
+          </aside>
+        </div>
+      </section>
+      <section id="projects" class="view" role="tabpanel" aria-labelledby="tab-projects" hidden>
+        <div class="page-heading"><div><span class="eyebrow">PROJECT ACCESS</span><h1>Projects &amp; product libraries</h1></div>
+          <div class="graph-tools"><button id="join-project" class="secondary"><i data-lucide="ticket"></i>Enter invite</button><button id="new-project"><i data-lucide="folder-plus"></i>Create</button></div></div>
+        <div id="project-list" class="project-list"></div>
+      </section>
+      <section id="products" class="view supply-view" role="tabpanel" aria-labelledby="tab-products" hidden>
+        <div class="page-heading">
+          <div><span class="eyebrow">MANUFACTURER RECORDS</span><h1>My products</h1><p class="muted">Product definitions controlled by this organisation. Published revisions are immutable.</p></div>
+          <div class="supply-actions"><button id="manage-native-product" class="secondary"><i data-lucide="component"></i>Manage existing product type</button><button id="create-product"><i data-lucide="plus"></i>Create product</button></div>
+        </div>
+        <div id="products-status" class="supply-status muted" role="status" aria-live="polite"></div>
+        <div id="product-list" class="supply-record-list"></div>
+      </section>
+      <section id="supplied" class="view supply-view" role="tabpanel" aria-labelledby="tab-supplied" hidden>
+        <div class="page-heading">
+          <div><span class="eyebrow">SUPPLIER RECORDS</span><h1>My supplied products</h1><p class="muted">Your offerings and project-specific deliveries; upstream product facts remain controlled by their issuer.</p></div>
+          <div class="supply-actions"><button id="create-offering"><i data-lucide="plus"></i>Create offering</button><button id="create-supply" class="secondary"><i data-lucide="truck"></i>Create project supply</button></div>
+        </div>
+        <div id="supplied-status" class="supply-status muted" role="status" aria-live="polite"></div>
+        <div id="offering-list" class="supply-record-list"></div>
+        <h2 class="supply-subheading">Project deliveries</h2>
+        <div id="supply-list" class="supply-record-list"></div>
+      </section>
+      <section id="discover" class="view supply-view" role="tabpanel" aria-labelledby="tab-discover" hidden>
+        <div class="page-heading">
+          <div><span class="eyebrow">PUBLIC CATALOGUE</span><h1>Discover products</h1><p class="muted">Public, published product and offering revisions. Source records are read-only; reuse creates a record under your authority.</p></div>
+        </div>
+        <div class="supply-filter">
+          <label>Record type<select id="catalogue-kind"><option value="">All types</option><option value="product">Manufacturer products</option><option value="offering">Supplier offerings</option></select></label>
+          <label>Search<input id="catalogue-search" type="search" placeholder="Name, model, organisation or class" /></label>
+          <button id="refresh-catalogue" class="secondary"><i data-lucide="refresh-cw"></i>Refresh catalogue</button>
+        </div>
+        <div id="catalogue-status" class="supply-status muted" role="status" aria-live="polite"></div>
+        <div id="catalogue-list" class="supply-record-list"></div>
+      </section>
+      <section id="documents" class="view supply-view" role="tabpanel" aria-labelledby="tab-documents" hidden>
+        <div class="page-heading">
+          <div><span class="eyebrow">VERSIONED EVIDENCE</span><h1>Documents</h1><p class="muted">Document issuer, category, version, integrity, retention and recipient access are shown where available.</p></div>
+        </div>
+        <div id="documents-status" class="supply-status muted" role="status" aria-live="polite"></div>
+        <div id="document-list" class="supply-record-list"></div>
+      </section>
+      <section id="installations" class="view supply-view" role="tabpanel" aria-labelledby="tab-installations" hidden>
+        <div class="page-heading">
+          <div><span class="eyebrow">PROJECT INSTALLATIONS</span><h1>Installations</h1><p class="muted">Record work performed against accepted supply. Delivery acceptance is not installation completion.</p></div>
+          <button id="create-installation"><i data-lucide="hard-hat"></i>Record installation</button>
+        </div>
+        <div class="supply-filter">
+          <label>Project<select id="installation-project"></select></label>
+        </div>
+        <div id="installations-status" class="supply-status muted" role="status" aria-live="polite"></div>
+        <div id="installation-list" class="supply-record-list"></div>
+      </section>
+      <section id="submissions" class="view supply-view" role="tabpanel" aria-labelledby="tab-submissions" hidden>
+        <div class="page-heading">
+          <div><span class="eyebrow">DIRECTED HANDOVER</span><h1>Submissions</h1><p class="muted">An immutable issue delivered to a named organisation and project. Project membership alone is not acceptance.</p></div>
+          <button id="create-submission"><i data-lucide="send"></i>Prepare submission</button>
+        </div>
+        <div class="supply-filter">
+          <label>View<select id="submission-direction"><option value="incoming">Incoming</option><option value="outgoing">Outgoing</option><option value="all">All submissions</option></select></label>
+          <label>Project<select id="submission-project"></select></label>
+          <label>Status<select id="submission-status-filter"><option value="">All states</option><option value="draft">Draft</option><option value="issued">Issued</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="changes-requested">Changes requested</option></select></label>
+        </div>
+        <div id="submissions-status" class="supply-status muted" role="status" aria-live="polite"></div>
+        <div id="submission-list" class="supply-record-list"></div>
+      </section>
+      <section
+        id="activity"
+        class="view"
+        role="tabpanel"
+        aria-labelledby="tab-activity"
+        hidden
+      >
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">AUTHORITY HISTORY</span>
+            <h1>Accepted activity</h1>
+          </div>
+        </div>
+        <div id="activity-list"></div>
+      </section>
+      <section
+        id="replication"
+        class="view"
+        role="tabpanel"
+        aria-labelledby="tab-replication"
+        hidden
+      >
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">RESILIENCE</span>
+            <h1>Dataset replication</h1>
+          </div>
+        </div>
+        <div class="replication-controls">
+          <label>Dataset<select id="replication-dataset"></select></label
+          ><label>Peer authority<select id="replication-peer"></select></label
+          ><button id="replicate">
+            <i data-lucide="send"></i>Replicate dataset
+          </button>
+        </div>
+        <h2>Stored replicas &amp; acknowledgements</h2>
+        <div id="replica-list"></div>
+      </section>
+    </main>
+    <dialog id="access-dialog">
+      <form id="access-form">
+        <div class="dialog-heading">
+          <h2>Local authorization</h2>
+          <button
+            type="button"
+            class="icon-button"
+            data-close="access-dialog"
+            title="Close"
+            aria-label="Close authorization"
+          >
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <label
+          >Local API key<input
+            id="key"
+            type="password"
+            autocomplete="off" /></label
+        ><label class="checkbox-label"
+          ><input id="storage" type="checkbox" />Encrypted fragment
+          storage</label
+        >
+        <p id="access-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="submit"><i data-lucide="check"></i>Apply</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="project-dialog">
+      <form id="project-form">
+        <div class="dialog-heading"><h2>Create workspace</h2><button type="button" class="icon-button" data-close="project-dialog" aria-label="Close" title="Close"><i data-lucide="x"></i></button></div>
+        <label>Workspace<select id="project-kind"><option value="project">Project</option><option value="product-library">Product library</option></select></label>
+        <label>Name<input id="project-name" maxlength="160" required /></label>
+        <label class="checkbox-label"><input id="project-public" type="checkbox" />Public</label>
+        <p id="project-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button type="submit"><i data-lucide="folder-plus"></i>Create</button></div>
+      </form>
+    </dialog>
+    <dialog id="members-dialog">
+      <form id="members-form">
+        <div class="dialog-heading"><h2 id="members-title">Project participants</h2><button type="button" class="icon-button" data-close="members-dialog" aria-label="Close" title="Close"><i data-lucide="x"></i></button></div>
+        <label class="checkbox-label"><input id="members-public" type="checkbox" />Public</label>
+        <div id="member-list" class="member-list"></div>
+        <div class="member-add"><label>Organisation DID<input id="member-did" placeholder="did:web:organisation.example" maxlength="512" /></label><label>Role<select id="member-role"><option value="viewer">Viewer</option><option value="contributor">Contributor</option></select></label><button type="button" id="add-member" class="icon-button" aria-label="Add participant" title="Add participant"><i data-lucide="user-plus"></i></button></div>
+        <p id="members-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button type="submit"><i data-lucide="save"></i>Save permissions</button></div>
+      </form>
+    </dialog>
+    <dialog id="invite-dialog">
+      <form id="invite-form">
+        <div class="dialog-heading"><h2 id="invite-title">Project invite</h2><button type="button" class="icon-button" data-close="invite-dialog" aria-label="Close" title="Close"><i data-lucide="x"></i></button></div>
+        <div class="invite-controls"><label>Requested role<select id="invite-role"><option value="viewer">Viewer</option><option value="contributor">Contributor</option></select></label><label>Expires in hours<input id="invite-hours" type="number" min="1" max="720" step="1" value="168" required /></label></div>
+        <div class="dialog-actions"><button type="submit"><i data-lucide="ticket-plus"></i>Generate code</button></div>
+        <div id="invite-result" hidden><label>Invite code<textarea id="invite-code" rows="3" readonly></textarea></label><div class="graph-tools"><p id="invite-expiry-note" class="muted"></p><button type="button" id="copy-invite" class="icon-button" title="Copy invite code" aria-label="Copy invite code"><i data-lucide="copy"></i></button></div></div>
+        <p id="invite-error" class="form-error" role="alert"></p>
+        <h3 class="invite-list-heading">Issued invites</h3><div id="issued-invites"></div>
+      </form>
+    </dialog>
+    <dialog id="join-dialog">
+      <form id="join-form">
+        <div class="dialog-heading"><h2>Join project</h2><button type="button" class="icon-button" data-close="join-dialog" aria-label="Close" title="Close"><i data-lucide="x"></i></button></div>
+        <label>Invite code<textarea id="join-code" rows="3" maxlength="2048" required spellcheck="false"></textarea></label>
+        <p id="join-result" class="join-result" role="status" hidden></p>
+        <p id="join-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button type="submit"><i data-lucide="send"></i>Propose connection</button></div>
+      </form>
+    </dialog>
+    <dialog id="join-review-dialog">
+      <div class="dialog-heading"><h2 id="join-review-title">Join requests</h2><div class="graph-tools"><button id="refresh-joins" class="icon-button" aria-label="Refresh join requests" title="Refresh join requests"><i data-lucide="refresh-cw"></i></button><button class="icon-button" data-close="join-review-dialog" aria-label="Close" title="Close"><i data-lucide="x"></i></button></div></div>
+      <p id="join-review-error" class="form-error" role="alert"></p>
+      <div id="join-request-list"></div>
+    </dialog>
+    <dialog id="entity-dialog">
+      <form id="entity-form">
+        <div class="dialog-heading"><h2>Create IFC entity</h2><button type="button" class="icon-button" data-close="entity-dialog" aria-label="Close" title="Close"><i data-lucide="x"></i></button></div>
+        <label>Project / library<select id="entity-project" required></select></label>
+        <label>Kind<select id="entity-template" required></select></label>
+        <label>Name<input id="entity-name" maxlength="160" required /></label>
+        <label>Parent<select id="entity-parent"></select></label>
+        <label>Product type<select id="entity-type"></select></label>
+        <dl class="property"><dt>Access</dt><dd id="entity-access"></dd></dl>
+        <dl class="property"><dt>IFC mapping</dt><dd id="entity-class"></dd></dl>
+        <p id="entity-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button type="submit"><i data-lucide="check"></i>Create entity</button></div>
+      </form>
+    </dialog>
+    <dialog id="payload-dialog">
+      <form id="payload-form">
+        <div class="dialog-heading">
+          <h2 id="payload-title"></h2>
+          <button
+            type="button"
+            class="icon-button"
+            data-close="payload-dialog"
+            title="Close"
+            aria-label="Close payload"
+          >
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <label
+          >JSON payload<textarea
+            id="payload"
+            spellcheck="false"
+            required
+          ></textarea>
+        </label>
+        <p id="payload-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" class="secondary" data-close="payload-dialog">
+            Cancel</button
+          ><button type="submit"><i data-lucide="send"></i>Submit</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="supply-dialog" class="supply-dialog">
+      <form id="supply-form">
+        <div class="dialog-heading"><div><span id="supply-dialog-step" class="eyebrow"></span><h2 id="supply-dialog-title"></h2></div><button type="button" class="icon-button" data-close="supply-dialog" aria-label="Close" title="Close"><i data-lucide="x"></i></button></div>
+        <div id="supply-dialog-body" class="supply-form-body"></div>
+        <p id="supply-dialog-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button type="button" id="supply-dialog-back" class="secondary" hidden>Back</button><button type="button" id="supply-dialog-next">Continue</button><button type="submit" id="supply-dialog-submit" hidden>Save</button></div>
+      </form>
+    </dialog>
+  </body>
 </html>

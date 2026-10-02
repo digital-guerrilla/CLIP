@@ -1,0 +1,24 @@
+{
+  "provenance": "JCS bytes produced by jcs; Ed25519 signature produced by cryptography/OpenSSL using the RFC 8032 test seed. Public fixture only, never a deployment key.",
+  "document": {
+    "@context": ["https://w3id.org/security/data-integrity/v2", {"@vocab": "urn:clip:protocol:"}],
+    "messageId": "00000000-0000-4000-8000-000000000001",
+    "actorDid": "did:web:vector.example",
+    "audienceDid": "did:web:receiver.example",
+    "kind": "replicationAcknowledgement",
+    "payload": {"sequence": 1, "datasetId": "urn:vector:dataset", "digest": "0000000000000000000000000000000000000000000000000000000000000000"},
+    "created": "2026-10-01T00:00:00Z"
+  },
+  "proofOptions": {
+    "@context": ["https://w3id.org/security/data-integrity/v2", {"@vocab": "urn:clip:protocol:"}],
+    "type": "DataIntegrityProof", "cryptosuite": "eddsa-jcs-2022",
+    "created": "2026-10-01T00:00:00Z",
+    "verificationMethod": "did:web:vector.example#authority-key",
+    "proofPurpose": "authentication"
+  },
+  "publicKeyHex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+  "signatureHex": "d9d9094201bea93d5c26a86395a474d82ed83dc55e6eaa6109b602b884ed5cd2aad8ae9887cea087c9f94d131605ed318fa7888ce62aee97337080b818eab702",
+  "proofValue": "z5McpV1jKMDaYoqrwgvpbqR8saPUwDTFHnhN35ML7ktGUQjrDC29uNiertdrjw9hfbtVXj4M12f8wCFZnXHzAPcim",
+  "documentSha256": "f0cb55f068523d1a506bdd66265d863b0c70e3f88ed1b3e8dd2f3e95590b8caa",
+  "proofOptionsSha256": "63d66070b0ab881c5f8102988e5cab2e05de38e5aa630d8f5aa271f5fdcdb185"
+}

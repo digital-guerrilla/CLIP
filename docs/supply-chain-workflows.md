@@ -95,6 +95,27 @@ delivery quantities, serial allocations, locations and installation evidence sta
 on their separate workflow/occurrence records. Identical product types do not
 merge two physical pumps.
 
+The six-node demo includes two independent manufacturers: Northstar on port
+8101 publishes the door and P-100 pump, and Aster on port 8106 publishes the M-5
+electric motor used by that pump. There is no dedicated demo relay; the inspector
+demonstrates optional encrypted evidence storage and replica placement.
+
+In **Facilities & assets**, drag graph nodes to rearrange them. Right-click an
+asset (keyboard: **L** or **Shift+F10**, or use **Show lineage**) to filter to its
+upstream accepted delivery, issued source snapshots, supplier offerings,
+manufacturer definitions and component products. Only its location ancestors
+are included, not other assets in the same space or using the same product type.
+For a type, lineage also shows its using installations. Source snapshots are
+read-only provenance, not editable recipient products. **Show full graph** or
+**Escape** restores the complete graph; **Reset layout** resets the current
+view. Dragging and keyboard arrow movement change the page layout only.
+
+Arrows point in contribution-flow direction: component product to assembled
+product type, product type to installed asset, and delivery/work event to asset.
+Containment arrows remain campus to building to space to asset. The demo authors
+that spatial structure only once; the Renewal project's installations reference
+its exact owner/dataset/entity addresses rather than creating duplicate facilities.
+
 The default graph view uses the newest verified **published** manufacturer revision
 observed by the node. An authorised console refresh also fetches the manufacturers'
 signed catalogues, so every reference resolves the update together, including

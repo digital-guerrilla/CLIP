@@ -26,6 +26,8 @@ const state = {
   templates: null,
   editingProject: null,
   editingMembers: {},
+  lineage: null,
+  entityLayouts: new Map(),
 };
 const colors = {
   import: "#168164",
@@ -138,17 +140,74 @@ function scopedHistory() {
   );
 }
 function entityKey(graph, path) {
-  const product = graph.entities?.[path]?.components?.["urn:clip:construction:product-identity:v1"];
+  const components = graph.entities?.[path]?.components;
+  const workflow = components?.["urn:clip:construction:source:v1"]?.properties?.supplyChain;
+  const definition = workflow?.kind === "product" && !workflow.acceptedFrom
+    ? graph.productResolution?.definitions?.find((item) => item.authorityDid === workflow.authorityDid && item.recordId === workflow.id &&
+      (graph.productResolution.mode !== "pinned" || item.revision === workflow.revision))
+    : null;
+  const product = components?.["urn:clip:construction:product-identity:v1"] || definition;
   if (product?.authorityDid && product?.recordId)
     return JSON.stringify(["manufacturer-product", product.authorityDid, product.recordId,
       graph.productResolution?.mode === "pinned" ? product.revision : "current"]);
+  const identity = components?.["urn:clip:construction:entity-identity:v1"];
+  if (identity?.authorityDid && identity?.datasetId && identity?.entityPath)
+    return JSON.stringify([identity.authorityDid, identity.datasetId, identity.entityPath]);
   return JSON.stringify([graph.authorityDid, graph.datasetId, path]);
+}
+
+function inventoryEntities() {
+  const selected = new Map();
+  function include(graph, path) {
+    const key = JSON.stringify([graph.authorityDid, graph.datasetId, path]);
+    if (selected.has(key) || !graph.entities[path]) return;
+    selected.set(key, { graph, path });
+    const location = graph.entities[path].components?.["urn:clip:construction:source:v1"]?.properties?.locationReference;
+    if (location) {
+      const model = state.graphs.find((item) => item.authorityDid === location.authorityDid && item.datasetId === location.datasetId);
+      if (!model?.entities[location.entityPath])
+        throw new Error("Referenced installation location is unavailable: " +
+          location.authorityDid + " / " + location.datasetId + " / " + location.entityPath);
+      include(model, location.entityPath);
+      ancestors(model, location.entityPath);
+    }
+  }
+  function ancestors(graph, path, visited = new Set()) {
+    if (visited.has(path)) return;
+    visited.add(path);
+    for (const [parent, entity] of Object.entries(graph.entities))
+      if (Object.values(entity.children || {}).includes(path)) {
+        include(graph, parent);
+        ancestors(graph, parent, visited);
+      }
+  }
+  for (const graph of scopedGraphs())
+    for (const path of Object.keys(graph.entities).sort((a, b) =>
+      Number(Boolean(graph.entities[b].components?.["urn:clip:construction:product-identity:v1"])) -
+      Number(Boolean(graph.entities[a].components?.["urn:clip:construction:product-identity:v1"])))) include(graph, path);
+  return [...selected.values()];
 }
 function entityLabel(graph, path) {
   const component = graph.effectiveComponents[path] || {};
+  const own = graph.entities[path]?.components || {};
+  if (!own["ifc::name"] && component["ifc::serial"])
+    return (component["ifc::name"] || readable(path.split("/").pop())) + " / " + component["ifc::serial"];
   return typeof component["ifc::name"] === "string"
     ? component["ifc::name"]
     : readable(path.split("/").pop());
+}
+function entityAuthority(entry) {
+  const components = entry.graph.entities[entry.path].components;
+  return components?.["urn:clip:construction:product-identity:v1"]?.authorityDid ||
+    components?.["urn:clip:construction:entity-identity:v1"]?.authorityDid ||
+    entry.graph.authorityDid;
+}
+function entityOwnerLabel(entry) {
+  const authority = entityAuthority(entry);
+  const product = entry.graph.entities[entry.path].components?.["urn:clip:construction:product-identity:v1"];
+  const manufacturer = entry.graph.effectiveComponents[entry.path]?.["urn:clip:construction:manufacturer-data:v1"]?.data?.manufacturer;
+  return "Data owner: " + (product && typeof manufacturer === "string" && manufacturer.trim()
+    ? manufacturer + " / " + didLabel(authority) : didLabel(authority));
 }
 function entityKind(graph, path) {
   const entity = graph.entities[path],
@@ -160,6 +219,7 @@ function entityKind(graph, path) {
       workflow.kind === "product" && workflow.acceptedFrom)) return "event";
   if (["IfcZone", "IfcGroup"].includes(className) || components["urn:clip:construction:product-library:v1"])
     return "container";
+  if (/^types?$/i.test(path) && Object.keys(entity.children || {}).length) return "container";
   if (/^(types?|events?)(\/|$)/i.test(path))
     return /^types?/i.test(path) ? "type" : "event";
   if (className === "Type" || /^Ifc.*Type$/.test(className)) return "type";
@@ -194,8 +254,8 @@ function symbolFor(entry) {
 function inventory() {
   const entries = [],
     lookup = new Map();
-  for (const graph of scopedGraphs())
-    for (const path of Object.keys(graph.entities)) {
+  const contributions = inventoryEntities();
+  for (const { graph, path } of contributions) {
       const entry = {
         graph,
         path,
@@ -204,23 +264,28 @@ function inventory() {
         kind: entityKind(graph, path),
         parent: null,
       };
-      if (lookup.has(entry.key)) continue;
+      if (lookup.has(entry.key)) {
+        lookup.get(entry.key).contributions.push({ graph, path });
+        continue;
+      }
+      entry.contributions = [{ graph, path }];
       entries.push(entry);
       lookup.set(entry.key, entry);
     }
-  for (const entry of entries) {
+  for (const { graph, path } of contributions) {
+    const entry = lookup.get(entityKey(graph, path));
     for (const target of Object.values(
-      entry.graph.entities[entry.path].children || {},
+      graph.entities[path].children || {},
     )) {
-      const child = lookup.get(entityKey(entry.graph, target));
+      const child = lookup.get(entityKey(graph, target));
       if (child && !child.parent && child !== entry) child.parent = entry;
     }
     const reference =
-      entry.graph.effectiveComponents[entry.path]?.[
+      graph.effectiveComponents[path]?.[
         "urn:clip:construction:reference:v1"
       ];
     if (typeof reference === "string") {
-      const parent = lookup.get(entityKey(entry.graph, reference));
+      const parent = lookup.get(entityKey(graph, reference));
       if (
         parent &&
         (parent.kind === "facility" || parent.kind === "container") &&
@@ -228,7 +293,15 @@ function inventory() {
       )
         entry.parent = parent;
     }
+    const location = graph.entities[path].components?.["urn:clip:construction:source:v1"]?.properties?.locationReference;
+    if (location) {
+      const model = state.graphs.find((item) => item.authorityDid === location.authorityDid && item.datasetId === location.datasetId);
+      const parent = model && lookup.get(entityKey(model, location.entityPath));
+      if (parent && parent !== entry) entry.parent = parent;
+    }
   }
+  for (const entry of entries)
+    if (entry.kind === "asset" && entries.some((child) => child.parent === entry)) entry.kind = "container";
   return { entries, lookup };
 }
 function descendants(entry, entries) {
@@ -736,6 +809,11 @@ function proposalTouchesPaths(proposal, paths) {
   return paths.has(proposal?.target?.entityPath) || (proposal?.operations || []).some((operation) => paths.has(operation.node?.path));
 }
 function entitySources(entry) {
+  if (entry.contributions?.length > 1) {
+    const sources = entry.contributions.flatMap(({ graph, path }) =>
+      entitySources({ ...entry, graph, path, contributions: [] }));
+    return [...new Map(sources.map((source) => [source.did, source])).values()];
+  }
   const paths = inheritedPaths(entry),
     sources = [];
   for (const source of entry.graph.sources || [])
@@ -938,11 +1016,14 @@ function renderAssets() {
     };
     $("asset-list").append(button);
   }
-  renderInspector(lookup.get(state.asset));
+  renderInspector(lookup.get(state.asset) || entityNetworkData().entries.find((entry) => entry.key === state.asset));
   icons();
 }
 function assetStatus(entry) {
   const components = entry.graph.effectiveComponents[entry.path] || {};
+  const workflow = components["urn:clip:construction:source:v1"]?.properties?.supplyChain;
+  if (["installation", "asset"].includes(workflow?.kind) && workflow.data?.status)
+    return readable(workflow.data.status);
   for (const [key, value] of Object.entries(components)) {
     if (value && typeof value === "object" && value.status)
       return readable(value.status);
@@ -959,25 +1040,204 @@ function assetStatus(entry) {
 function entityNetworkData() {
   const { entries } = inventory();
   const links = [];
-  const known = new Set(entries.map((entry) => entry.key));
+  const known = new Map(entries.map((entry) => [entry.key, entry]));
+  const seen = new Set();
+  const pins = new Map();
+  const pinKey = (value) => JSON.stringify([value.authorityDid, value.recordId || value.id, value.revision]);
+  const workflowOf = (entry) => entry.graph.entities[entry.path].components?.["urn:clip:construction:source:v1"]?.properties?.supplyChain;
   for (const entry of entries) {
-    const entity = entry.graph.entities[entry.path];
-    for (const [kind, targets] of [["Contains", entity.children], ["Type", entity.inherits]]) {
-      for (const path of Object.values(targets || {})) {
-        const target = entityKey(entry.graph, resolvePath(entry.graph, path));
-        if (known.has(target)) links.push({ source: entry.key, target, kind });
+    const workflow = workflowOf(entry);
+    if (workflow) pins.set(pinKey(workflow), entry.key);
+  }
+  const snapshots = [];
+  for (const entry of entries) {
+    const original = workflowOf(entry)?.acceptedFrom?.snapshot;
+    if (original) snapshots.push({ value: original, graph: entry.graph });
+  }
+  const visited = new Set();
+  while (snapshots.length) {
+    const { value, graph } = snapshots.pop();
+    const pin = pinKey(value);
+    if (visited.has(pin)) continue;
+    visited.add(pin);
+    for (const dependency of value.dependencies || []) snapshots.push({ value: dependency, graph });
+    if (value.acceptedFrom?.snapshot) snapshots.push({ value: value.acceptedFrom.snapshot, graph });
+    if (pins.has(pin)) continue;
+    const definition = value.kind === "product" && !value.acceptedFrom
+      ? graph.productResolution?.definitions?.find((item) => item.authorityDid === value.authorityDid &&
+        item.recordId === value.id && (graph.productResolution.mode !== "pinned" || item.revision === value.revision))
+      : null;
+    if (definition) {
+      pins.set(pin, entityKey(graph, definition.path));
+      continue;
+    }
+    const key = JSON.stringify(["source-snapshot", value.authorityDid, value.id, value.revision]);
+    const path = value.graphPath;
+    const components = { "ifc::name": value.name, "urn:clip:construction:source:v1": {
+      format: "CLIP", id: value.id, class: value.ifcClass, properties: { supplyChain: value },
+    }};
+    const snapshotGraph = { authorityDid: value.authorityDid, datasetId: value.datasetId,
+      entities: { [path]: { components, children: {}, inherits: {} } },
+      effectiveComponents: { [path]: components }, schemas: graph.schemas, sources: [] };
+    const entry = { graph: snapshotGraph, path, key, label: value.name, kind: value.kind === "product" ? "type" : "event",
+      parent: null, snapshot: true };
+    entries.push(entry);
+    known.set(key, entry);
+    pins.set(pin, key);
+  }
+  function add(source, target, kind, label = kind) {
+    const key = JSON.stringify([source, target, kind, label]);
+    if (source !== target && known.has(source) && known.has(target) && !seen.has(key)) {
+      seen.add(key);
+      links.push({ source, target, kind, label });
+    }
+  }
+  for (const { graph, path } of inventoryEntities()) {
+      const entity = graph.entities[path];
+      const source = entityKey(graph, path);
+      const workflow = entity.components?.["urn:clip:construction:source:v1"]?.properties?.supplyChain;
+      const targetKey = (target) => entityKey(graph, resolvePath(graph, target));
+      for (const target of Object.values(entity.children || {}))
+        add(source, targetKey(target), known.get(targetKey(target))?.kind === "type" ? "Lists type" : "Contains");
+      for (const target of Object.values(entity.inherits || {})) {
+        const key = targetKey(target);
+        if (known.get(key)?.kind !== "type") {
+          add(source, key, workflow?.kind === "installation" ? "Allocated from" : "Inherits");
+          continue;
+        }
+        if (workflow && ["supply", "offering"].includes(workflow.kind)) {
+          const manufacturer = graph.entities[resolvePath(graph, target)]?.components?.["urn:clip:construction:product-identity:v1"]?.authorityDid;
+          const route = [...new Set((workflow.lineage || [])
+            .filter((item) => item.kind === "offering" && item.authorityDid !== manufacturer)
+            .map((item) => item.authorityDid))];
+          add(source, key, "Supply", route.length ? "Supply via " + route.map(didLabel).join(" / ") : "Direct supply");
+        } else add(source, key, workflow?.kind === "product" && workflow.acceptedFrom ? "Product reference" : "Type");
+      }
+      for (const target of entity.components?.["urn:clip:construction:component-types:v1"] || [])
+        add(source, targetKey(target), "Component type");
+      const location = entity.components?.["urn:clip:construction:source:v1"]?.properties?.locationReference;
+      if (location) {
+        const model = state.graphs.find((item) => item.authorityDid === location.authorityDid && item.datasetId === location.datasetId);
+        if (model) add(entityKey(model, location.entityPath), source, "Contains");
+      }
+      for (const [schema, value] of Object.entries(entity.components || {})) {
+        if (typeof value === "string" && /installation-reference/.test(schema))
+          add(source, targetKey(value), "Event");
+        if (value && typeof value === "object" && typeof value.subject === "string" && /event(?:$|:v\d+$)/.test(schema))
+          add(targetKey(value.subject), source, "Event");
+      }
+  }
+  for (const entry of entries) {
+    const workflow = workflowOf(entry);
+    for (const pin of workflow?.sources || []) {
+      const target = pins.get(pinKey(pin));
+      if (target) add(entry.key, target, workflow.kind === "installation" ? "Allocated from" : "Sourced from");
+      else {
+        const sourceGraph = scopedGraphs().find((item) => item.authorityDid === pin.authorityDid && item.datasetId === pin.datasetId);
+        if (sourceGraph && pin.entityPath)
+          add(entry.key, entityKey(sourceGraph, pin.entityPath), workflow.kind === "installation" ? "Allocated from" : "Sourced from");
       }
     }
+    const original = workflow?.acceptedFrom?.snapshot;
+    if (original) add(entry.key, pins.get(pinKey(original)), "Received from");
   }
   return { entries, links };
 }
 
+function entityFlowLink(link) {
+  // IFC relationships are dependency-oriented; the visual diagram shows contribution flow.
+  return ["Contains", "Lists type"].includes(link.kind) ? link :
+    { ...link, source: link.target, target: link.source };
+}
+
+function lineageNetworkData(network, rootKey) {
+  const root = network.entries.find((entry) => entry.key === rootKey);
+  if (!root) return { entries: [], links: [], depths: new Map() };
+  const selected = new Set([rootKey]), depths = new Map([[rootKey, 0]]), pending = [rootKey];
+  if (root.kind === "type")
+    for (const link of network.links.filter((item) => item.target === rootKey && item.kind === "Type")) {
+      selected.add(link.source);
+      depths.set(link.source, 1);
+      pending.push(link.source);
+    }
+  const traversed = new Set();
+  while (pending.length) {
+    const current = pending.shift();
+    if (traversed.has(current)) continue;
+    traversed.add(current);
+    for (const link of network.links.filter((item) => item.source === current && !["Contains", "Lists type"].includes(item.kind))) {
+      if (!selected.has(link.target)) {
+        selected.add(link.target);
+        depths.set(link.target, depths.get(current) - 1);
+        pending.push(link.target);
+      }
+    }
+  }
+  // Add location ancestors only after sourcing traversal, never sibling assets.
+  const locations = [...selected];
+  while (locations.length) {
+    const current = locations.shift();
+    for (const link of network.links.filter((item) => item.target === current && item.kind === "Contains")) {
+      if (!selected.has(link.source)) {
+        selected.add(link.source);
+        depths.set(link.source, depths.get(current) - 1);
+        locations.push(link.source);
+      }
+    }
+  }
+  return { entries: network.entries.filter((entry) => selected.has(entry.key)),
+    links: network.links.filter((link) => selected.has(link.source) && selected.has(link.target) && link.kind !== "Lists type"),
+    depths };
+}
+
+function entityLayoutKey() {
+  return JSON.stringify([state.scope, state.lineage]);
+}
+function entityLayout() {
+  const key = entityLayoutKey();
+  if (!state.entityLayouts.has(key)) state.entityLayouts.set(key, { positions: new Map(), transform: null });
+  return state.entityLayouts.get(key);
+}
+function moveEntity(key, x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  entityLayout().positions.set(key, { x, y });
+}
+function showLineage(key) {
+  state.lineage = key;
+  state.asset = key;
+  renderAssets();
+  renderEntityNetwork();
+  fitEntityNetwork();
+  d3.select("#entity-network").selectAll(".entity-node").filter((entry) => entry.key === key).node()?.focus();
+}
+function fitEntityNetwork() {
+  if (!entityZoom) return;
+  const canvas = d3.select("#entity-network");
+  const bounds = canvas.select("g").node()?.getBBox();
+  if (!bounds?.width || !bounds.height) return;
+  const { width, height } = canvas.node().viewBox.baseVal;
+  const scale = Math.max(0.1, Math.min(1, (width - 60) / bounds.width, (height - 60) / bounds.height));
+  canvas.call(entityZoom.transform, d3.zoomIdentity.translate((width - bounds.width * scale) / 2 - bounds.x * scale,
+    (height - bounds.height * scale) / 2 - bounds.y * scale).scale(scale));
+}
+
 let entityZoom;
 function renderEntityNetwork() {
-  const { entries, links } = entityNetworkData();
+  const network = entityNetworkData();
+  if (state.lineage && !network.entries.some((entry) => entry.key === state.lineage)) state.lineage = null;
+  const { entries, links, depths } = state.lineage ? lineageNetworkData(network, state.lineage) : network;
+  const layout = entityLayout();
+  const hadTransform = Boolean(layout.transform);
+  const lineageRoot = network.entries.find((entry) => entry.key === state.lineage);
+  $("entity-lineage-status").textContent = lineageRoot ? "Lineage of " + lineageRoot.label +
+    (lineageRoot.kind === "type" ? " / installations, sources and component products" : " / upstream sources and location only") : "";
+  $("show-all-entities").hidden = !state.lineage;
+  $("show-lineage").disabled = !network.entries.some((entry) => entry.key === state.asset);
   const canvas = d3.select("#entity-network");
   canvas.selectAll("*").remove();
-  $("entity-network-count").textContent = entries.length + " entities";
+  $("entity-network-count").textContent = entries.length + " entities / " +
+    entries.filter((entry) => entry.kind === "type").length + " types / " +
+    entries.filter((entry) => entry.kind === "asset").length + " assets";
   if (!entries.length) {
     canvas.attr("viewBox", "0 0 900 300").append("text").attr("x", 450).attr("y", 150).attr("text-anchor", "middle").text("No entities in this selection");
     return;
@@ -985,7 +1245,7 @@ function renderEntityNetwork() {
   const columns = new Map();
   const positions = new Map();
   for (const entry of entries) {
-    let depth = 0, current = entry.parent;
+    let depth = depths?.get(entry.key) || 0, current = depths ? null : entry.parent;
     const visited = new Set([entry.key]);
     while (current && !visited.has(current.key)) {
       visited.add(current.key);
@@ -998,46 +1258,103 @@ function renderEntityNetwork() {
   const width = canvas.node().getBoundingClientRect().width || 900;
   const height = canvas.node().getBoundingClientRect().height || 320;
   const vertical = width < 600;
+  const minimumDepth = Math.min(...columns.keys());
   for (const [depth, items] of columns)
-    items.forEach((entry, index) => positions.set(entry.key, vertical
-      ? { x: width / 2 + index * 230, y: 35 + depth * 95 }
-      : { x: 115 + depth * 230, y: 45 + index * 100 }));
+    items.forEach((entry, index) => {
+      if (!layout.positions.has(entry.key)) layout.positions.set(entry.key, vertical
+        ? { x: width / 2 + index * 230, y: 45 + (depth - minimumDepth) * 110 }
+        : { x: 115 + (depth - minimumDepth) * 260, y: 45 + index * 110 });
+      positions.set(entry.key, layout.positions.get(entry.key));
+    });
   canvas.attr("viewBox", `0 0 ${width} ${height}`);
+  canvas.append("defs").append("marker").attr("id", "entity-arrow")
+    .attr("viewBox", "0 -4 8 8").attr("refX", 8).attr("refY", 0)
+    .attr("markerWidth", 7).attr("markerHeight", 7).attr("orient", "auto")
+    .append("path").attr("d", "M0,-4L8,0L0,4").attr("fill", "context-stroke");
   const group = canvas.append("g");
-  entityZoom = d3.zoom().scaleExtent([0.3, 5]).on("zoom", (event) => group.attr("transform", event.transform));
+  entityZoom = d3.zoom().scaleExtent([0.1, 5]).on("zoom", (event) => {
+    group.attr("transform", event.transform);
+    layout.transform = event.transform;
+  });
   canvas.call(entityZoom).on("dblclick.zoom", null);
+  if (layout.transform) canvas.call(entityZoom.transform, layout.transform);
+  else canvas.call(entityZoom.transform, d3.zoomIdentity);
+  const drawnLinks = [];
   for (const link of links) {
-    const from = positions.get(link.source), to = positions.get(link.target);
-    const color = link.kind === "Type" ? colors.import : colors.replica;
-    const curve = vertical
-      ? `M${from.x + 22},${from.y}C${from.x + 115},${from.y} ${to.x + 115},${to.y} ${to.x + 22},${to.y}`
-      : `M${from.x + 22},${from.y}C${(from.x + to.x) / 2},${from.y} ${(from.x + to.x) / 2},${to.y} ${to.x - 22},${to.y}`;
-    group.append("path").attr("d", curve)
-      .attr("fill", "none").attr("stroke", color).attr("stroke-width", 1.5).attr("stroke-dasharray", link.kind === "Type" ? "5 4" : null);
-    group.append("text").attr("x", vertical ? Math.max(from.x, to.x) + 95 : (from.x + to.x) / 2).attr("y", (from.y + to.y) / 2 - 10)
-      .attr("text-anchor", "middle").attr("class", "entity-link-label").text(link.kind);
+    const typeLink = ["Type", "Component type", "Product reference", "Inherits"].includes(link.kind);
+    const color = typeLink ? colors.import : ["Supply", "Allocated from", "Sourced from", "Received from"].includes(link.kind) ? colors.contribution : colors.replica;
+    const path = group.append("path").attr("fill", "none").attr("stroke", color)
+      .attr("stroke-width", 1.5).attr("stroke-dasharray", typeLink ? "5 4" : null).attr("marker-end", "url(#entity-arrow)");
+    const plainLabel = { Type: "Defines asset", "Component type": "Component of", "Sourced from": "Supplies",
+      "Received from": "Delivered as", "Allocated from": "Installed as",
+      "Product reference": "Defines product", Inherits: "Contributes to", Event: "Records work on" };
+    const label = group.append("text").attr("text-anchor", "middle").attr("class", "entity-link-label")
+      .text(plainLabel[link.kind] || link.label);
+    drawnLinks.push({ link: entityFlowLink(link), path, label });
+  }
+  function updateLinks() {
+    for (const { link, path, label } of drawnLinks) {
+      const from = positions.get(link.source), to = positions.get(link.target);
+      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      const x1 = from.x + Math.cos(angle) * 24, y1 = from.y + Math.sin(angle) * 24;
+      const x2 = to.x - Math.cos(angle) * 28, y2 = to.y - Math.sin(angle) * 28;
+      path.attr("d", `M${x1},${y1}L${x2},${y2}`);
+      label.attr("x", (x1 + x2) / 2).attr("y", (y1 + y2) / 2 - 10);
+    }
   }
   for (const entry of entries) {
     const position = positions.get(entry.key);
     const button = group.append("g").attr("transform", `translate(${position.x},${position.y})`)
-      .attr("tabindex", 0).attr("role", "button").attr("aria-label", entry.label)
+      .datum(entry)
+      .attr("tabindex", 0).attr("role", "button").attr("aria-label", entry.label + " / " + entityOwnerLabel(entry))
       .attr("class", "entity-node" + (state.asset === entry.key ? " selected" : ""));
     const select = () => {
       state.asset = entry.key;
       renderAssets();
       renderEntityNetwork();
+      d3.select("#entity-network").selectAll(".entity-node").filter((item) => item.key === entry.key).node()?.focus();
       $("asset-inspector").scrollIntoView({ behavior: "smooth", block: "nearest" });
     };
-    button.on("click", select).on("keydown", (event) => {
-      if (["Enter", " "].includes(event.key)) { event.preventDefault(); select(); }
+    button.on("click", (event) => { if (!event.defaultPrevented) select(); })
+      .on("contextmenu", (event) => { event.preventDefault(); event.stopPropagation(); showLineage(entry.key); })
+      .on("keydown", (event) => {
+      if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey || event.key.toLowerCase() === "l") {
+        event.preventDefault(); showLineage(entry.key);
+      } else if (["Enter", " "].includes(event.key)) { event.preventDefault(); select(); }
+      else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+        const current = positions.get(entry.key), step = event.shiftKey ? 40 : 10;
+        moveEntity(entry.key, current.x + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0),
+          current.y + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0));
+        positions.set(entry.key, layout.positions.get(entry.key));
+        button.attr("transform", `translate(${positions.get(entry.key).x},${positions.get(entry.key).y})`);
+        updateLinks();
+      }
     });
+    button.call(d3.drag().container(() => group.node()).subject(() => positions.get(entry.key)).clickDistance(4)
+      .on("start", (event) => { event.sourceEvent.stopPropagation(); button.classed("dragging", true); })
+      .on("drag", (event) => {
+        moveEntity(entry.key, event.x, event.y);
+        positions.set(entry.key, layout.positions.get(entry.key));
+        button.attr("transform", `translate(${event.x},${event.y})`);
+        updateLinks();
+      }).on("end", () => button.classed("dragging", false)));
     button.append("circle").attr("r", 22);
-    button.append("text").attr("text-anchor", "middle").attr("y", 5).text(entry.kind === "type" ? "T" : entry.kind === "facility" ? "F" : "E");
+    button.append("text").attr("text-anchor", "middle").attr("y", 5).text(entry.kind === "type" ? "T" : entry.kind === "facility" ? "F" : entry.kind === "asset" ? "A" : "E");
     button.append("text").attr("text-anchor", "middle").attr("y", 38).attr("class", "entity-node-label")
-      .text(entry.label.length > 23 ? entry.label.slice(0, 21) + "..." : entry.label);
-    button.append("text").attr("text-anchor", "middle").attr("y", 54).attr("class", "entity-node-kind").text(readable(entry.kind));
-    button.append("title").text(entry.label + "\n" + entry.path);
+      .text(!state.lineage && entry.label.length > 23 ? entry.label.slice(0, 21) + "..." : entry.label);
+    const product = entry.graph.entities[entry.path].components?.["urn:clip:construction:product-identity:v1"];
+    button.append("text").attr("text-anchor", "middle").attr("y", 54).attr("class", "entity-node-kind")
+      .text(entry.snapshot ? "Issued snapshot" : readable(entry.kind));
+    button.append("text").attr("text-anchor", "middle").attr("y", 69).attr("class", "entity-node-owner")
+      .text(entityOwnerLabel(entry));
+    button.append("title").text(entry.label + "\n" + entry.path +
+      "\nData owner: " + entityAuthority(entry) +
+      (product ? "\nManufacturer: " + product.authorityDid + "\nProduct: " + product.recordId : "") +
+      "\nDrag to move. Right-click or press L to show lineage.");
   }
+  updateLinks();
+  if (!hadTransform) fitEntityNetwork();
 }
 
 function canAcceptJoin(request, now = Date.now()) {
@@ -1150,7 +1467,7 @@ function renderProjects() {
     const actions = node("div", undefined, "graph-tools");
     const open = node("button", undefined, "secondary");
     open.append(icon("folder-open"), node("span", "Open"));
-    open.onclick = () => { state.scope = project.projectId; $("scope").value = state.scope; state.facility = null; state.asset = null; render(); activateView("assets"); };
+    open.onclick = () => { state.scope = project.projectId; $("scope").value = state.scope; state.facility = null; state.asset = null; state.lineage = null; render(); activateView("assets"); };
     const members = node("button", undefined, "secondary");
     members.append(icon("users"), node("span", "Participants"));
     members.onclick = () => openMembers(project);
@@ -1274,10 +1591,20 @@ function renderInspector(entry) {
     property(identity, "Project / library", project.projectName);
     property(identity, "Access", readable(project.visibility) + " / inherited");
   }
-  property(identity, "Authority", didLabel(entry.graph.authorityDid));
+  property(identity, "Authority", didLabel(entityAuthority(entry)));
+  if (entry.contributions?.length > 1)
+    for (const contribution of entry.contributions)
+      property(identity, "Contributing record", contribution.graph.datasetId + " / " + contribution.path);
+  if (entry.snapshot) property(identity, "Source record", "Read-only issued snapshot / not a local editable asset");
   property(identity, "Container", entry.parent?.label || "Unassigned");
   if (components["ifc::serial"])
     property(identity, "Serial", components["ifc::serial"]);
+  const workflow = components["urn:clip:construction:source:v1"]?.properties?.supplyChain;
+  if (workflow?.kind === "installation") {
+    const serials = (workflow.sources || []).flatMap((source) => source.serials || []);
+    if (serials.length) property(identity, "Allocated serials", serials.join(", "));
+    if (workflow.data?.location) property(identity, "Installation location", workflow.data.location);
+  }
   if (components["ifc::manufacturer"])
     property(identity, "Manufacturer", components["ifc::manufacturer"]);
   const manufacturerType = components["urn:clip:construction:product-identity:v1"];
@@ -1285,7 +1612,7 @@ function renderInspector(entry) {
     property(identity, "Manufacturer product", manufacturerType.authorityDid + " / " + manufacturerType.recordId);
     property(identity, "Resolved product revision", String(manufacturerType.revision));
     property(identity, "Pinned issue revisions", manufacturerType.pinnedRevisions.join(", "));
-    property(identity, "Product view", entry.graph.productResolution?.mode || "pinned");
+    property(identity, "Product view", entry.graph.productResolution?.mode || "imported revision");
   }
   const status = assetStatus(entry);
   if (status) property(identity, "Status", status);
@@ -1313,10 +1640,13 @@ function renderInspector(entry) {
   }
   const relations = section("Relationships");
   const entity = entry.graph.entities[entry.path];
-  for (const [name, path] of Object.entries(entity.inherits || {}))
-    property(relations, readable(name), entityLabel(entry.graph, path));
-  for (const path of entity.components["urn:clip:construction:component-types:v1"] || [])
-    property(relations, "Component type (not physical containment)", entityLabel(entry.graph, path));
+  const network = entityNetworkData();
+  const related = new Map(network.entries.map((item) => [item.key, item]));
+  for (const link of network.links.filter((item) => item.source === entry.key))
+    property(relations, link.label, related.get(link.target).label + " / " + didLabel(entityAuthority(related.get(link.target))));
+  if (entry.kind === "type")
+    for (const link of network.links.filter((item) => item.target === entry.key && item.kind === "Type"))
+      property(relations, "Type of", related.get(link.source).label);
   for (const [key, value] of Object.entries(components))
     if (
       typeof value === "string" &&
@@ -1345,7 +1675,9 @@ function renderInspector(entry) {
     relations.childElementCount === 1
   )
     relations.append(node("p", "No recorded relationships", "muted"));
-  const history = state.history.filter((item) => item.datasetId === entry.graph.datasetId && proposalTouchesPaths(item.transaction.proposal, inheritedPaths(entry)));
+  const history = state.history.filter((item) =>
+    (entry.contributions || [{ graph: entry.graph, path: entry.path }]).some(({ graph, path }) =>
+      item.datasetId === graph.datasetId && proposalTouchesPaths(item.transaction.proposal, inheritedPaths({ graph, path }))));
   if (history.length) {
     const historyBlock = section("Accepted history");
     for (const item of history) historyBlock.append(activityRow(item, true));
@@ -1571,6 +1903,7 @@ $("scope").onchange = () => {
   state.facility = null;
   state.asset = null;
   state.networkDid = null;
+  state.lineage = null;
   render();
 };
 $("asset-search").oninput = renderAssets;
@@ -1821,14 +2154,21 @@ $("entity-form").onsubmit = async (event) => {
   } catch (error) { $("entity-error").textContent = error.message; }
   finally { event.submitter.disabled = false; }
 };
-$("fit-entities").onclick = () => {
-  if (!entityZoom) return;
-  const canvas = d3.select("#entity-network");
-  const bounds = canvas.select("g").node()?.getBBox();
-  if (!bounds?.width || !bounds.height) return;
-  const { width, height } = canvas.node().viewBox.baseVal;
-  const scale = Math.min(1, (width - 30) / bounds.width, (height - 30) / bounds.height);
-  canvas.call(entityZoom.transform, d3.zoomIdentity.translate((width - bounds.width * scale) / 2 - bounds.x * scale, (height - bounds.height * scale) / 2 - bounds.y * scale).scale(scale));
+$("fit-entities").onclick = fitEntityNetwork;
+$("show-lineage").onclick = () => { if (state.asset) showLineage(state.asset); };
+$("show-all-entities").onclick = () => { state.lineage = null; renderEntityNetwork(); };
+$("reset-entity-layout").onclick = () => {
+  state.entityLayouts.delete(entityLayoutKey());
+  renderEntityNetwork();
+  fitEntityNetwork();
+};
+$("entity-network").onkeydown = (event) => {
+  if (event.key === "Escape" && state.lineage) {
+    event.preventDefault();
+    state.lineage = null;
+    renderEntityNetwork();
+    $("show-lineage").focus();
+  }
 };
 $("payload-form").onsubmit = async (event) => {
   event.preventDefault();

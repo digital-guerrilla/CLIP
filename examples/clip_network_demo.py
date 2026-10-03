@@ -18,6 +18,8 @@ if str(ROOT) not in sys.path:
 
 from node.app.core.crypto import NodeKeyManager
 from node.app.core.data_integrity import add_data_integrity_proof
+from node.app.core.ifc_product_resolver import IDENTITY_SCHEMA, product_path
+from node.app.core.ifc_protocol import IfcGraphProposalTransaction
 from node.app.federation.clip_layers import sha256_sri_integrity
 from node.app.imports.ifcx import (
     EVIDENCE_SCHEMA,
@@ -35,7 +37,7 @@ NODES = {
     "main_contractor": 8103,
     "owner": 8104,
     "inspector": 8105,
-    "relay": 8106,
+    "component_manufacturer": 8106,
 }
 DATASET_ID = "urn:owner:north-wing:v1"
 MANUFACTURER_DATASET_ID = "urn:manufacturer:door-catalog:v1"
@@ -256,7 +258,47 @@ def _sign_service_message(role: str, kind: str, audience_did: str, payload: dict
     )
 
 
+def seed_products() -> dict[str, dict]:
+    door = create_record(
+        "manufacturer", "product", "Northstar Door Model X", ifc_class="IfcDoorType",
+        data={"manufacturer": "Northstar", "model": "NDX-90", "fireRatingMinutes": 90},
+    )
+    door_revision = publish_record("manufacturer", door)
+    motor = create_record(
+        "component_manufacturer", "product", "Aster Motor M-5", ifc_class="IfcElectricMotorType",
+        data={"manufacturer": "Aster", "model": "M-5", "ratedPowerKw": 5.5, "voltage": "400 V"},
+    )
+    motor_revision = publish_record("component_manufacturer", motor)
+    post("manufacturer", "/clip/v1/supply-chain/catalogue/discover", {
+        "authorityDid": peer_did("component_manufacturer"),
+    })
+    pump = create_record(
+        "manufacturer", "product", "Northstar Inline Pump P-100", ifc_class="IfcPumpType",
+        sources=[source_record(motor_revision, quantity=1, unit="each")],
+        data={"manufacturer": "Northstar", "model": "P-100", "flowRateLpm": 420, "headMetres": 28},
+    )
+    datasheet = post("manufacturer", f"/clip/v1/supply-chain/records/{pump['id']}/documents", {
+        "name": "Northstar-P100-datasheet.txt",
+        "mediaType": "text/plain",
+        "content": base64.b64encode(
+            b"Northstar P-100 | 420 L/min | 28 m head | 5.5 kW motor\n"
+        ).decode("ascii"),
+        "visibility": "public",
+        "expectedRevision": pump["revision"],
+    })
+    pump["revision"] = datasheet["recordRevision"]
+    return {"door": door_revision, "pump": publish_record("manufacturer", pump), "motor": motor_revision}
+
+
 def seed() -> None:
+    products = seed_products()
+    identities = {
+        name: {
+            "authorityDid": record["authorityDid"], "recordId": record["id"],
+            "revision": record["revision"], "pinnedRevisions": [record["revision"]],
+        }
+        for name, record in products.items()
+    }
     manufacturer_file = {
         "header": {
             "id": MANUFACTURER_DATASET_ID,
@@ -267,6 +309,7 @@ def seed() -> None:
         },
         "imports": [],
         "schemas": {
+            IDENTITY_SCHEMA: {"value": {"dataType": "Object"}},
             "ifc::name": {"value": {"dataType": "String"}},
             "ifc::manufacturer": {"value": {"dataType": "String"}},
             "ifc::model": {"value": {"dataType": "String"}},
@@ -280,6 +323,7 @@ def seed() -> None:
             {
                 "path": "types/door",
                 "attributes": {
+                    IDENTITY_SCHEMA: identities["door"],
                     "ifc::name": "Northstar Door Model X",
                     "ifc::manufacturer": "Northstar Construction Products",
                     "ifc::model": "NDX-90",
@@ -288,6 +332,7 @@ def seed() -> None:
             {
                 "path": "types/pump",
                 "attributes": {
+                    IDENTITY_SCHEMA: identities["pump"],
                     "ifc::name": "Northstar Inline Pump P-100",
                     "ifc::manufacturer": "Northstar Construction Products",
                     "ifc::model": "P-100",
@@ -352,6 +397,7 @@ def seed() -> None:
             }, "children": {
                 "lobby": "building/storey-1/lobby",
                 "plant-room": "building/storey-1/plant-room",
+                "corridor": "building/storey-1/corridor",
             }},
             {"path": "building/storey-1/lobby", "attributes": {
                 "ifc::name": "Main Lobby",
@@ -361,6 +407,25 @@ def seed() -> None:
                 "ifc::name": "Plant Room",
                 SOURCE_SCHEMA: {"format": "IFC4X3_ADD2", "id": "SPACE-PLANT", "class": "IfcSpace", "properties": {}},
             }, "children": {"pump-1": "building/pump-1"}},
+            {"path": "building/storey-1/corridor", "attributes": {
+                "ifc::name": "Service Corridor",
+                SOURCE_SCHEMA: {"format": "IFC4X3_ADD2", "id": "SPACE-CORRIDOR", "class": "IfcSpace", "properties": {}},
+            }},
+            {"path": "building/storey-1/plant-room/assembly", "attributes": {
+                "ifc::name": "Plant Room Pump Assembly",
+                SOURCE_SCHEMA: {"format": "IFC4X3_ADD2", "id": "ASSEMBLY-PUMPS", "class": "IfcElementAssembly", "properties": {}},
+            }},
+            {"path": "building/storey-1/plant-room", "children": {
+                "assembly": "building/storey-1/plant-room/assembly",
+            }},
+            {"path": "zone/public", "attributes": {
+                "ifc::name": "Public Areas",
+                SOURCE_SCHEMA: {"format": "IFC4X3_ADD2", "id": "ZONE-PUBLIC", "class": "IfcZone", "properties": {}},
+            }},
+            {"path": "group/life-safety", "attributes": {
+                "ifc::name": "Life Safety Assets",
+                SOURCE_SCHEMA: {"format": "IFC4X3_ADD2", "id": "GROUP-SAFETY", "class": "IfcGroup", "properties": {}},
+            }},
             {
                 "path": ASSET_PATH,
                 "inherits": {"type": "types/door"},
@@ -500,15 +565,16 @@ def seed() -> None:
         "installationStatus": "complete",
         "acceptedSequence": pump_receipt["sequence"],
         "schemaDigest": owner_registration["schemaDigest"],
+        "spatialModelDatasetId": DATASET_ID,
     }
-    seed_showcase(state)
+    seed_showcase(state, products)
     DATA.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
     verify()
     print("Seeded IFC assets, a multi-authority supply chain, project access, evidence, replication, and DID gossip.")
 
 
-def seed_showcase(state: dict) -> None:
+def seed_showcase(state: dict, products: dict[str, dict]) -> None:
     evidence = post("owner", "/clip/v1/evidence/upload", {
         "target": {
             "authorityDid": peer_did("owner"),
@@ -522,7 +588,7 @@ def seed_showcase(state: dict) -> None:
             b"Commissioning checklist: rotation, vibration, flow and pressure checked.\n"
             * 40
         ).decode("ascii"),
-        "recipients": [peer_did("owner"), peer_did("relay")],
+        "recipients": [peer_did("owner"), peer_did("inspector")],
         "retentionSeconds": 86400,
         "chunkSize": 1024,
     })
@@ -575,58 +641,13 @@ def seed_showcase(state: dict) -> None:
     owner_project = create_project("owner", "North Wing Renewal")
     project_id = owner_project["projectId"]
 
-    site = create_entity(project_id, "site", "North Wing Campus", parent_path="project")
-    building = create_entity(project_id, "building", "North Wing", parent_path=site["entityPath"])
-    storey = create_entity(project_id, "storey", "Ground Floor", parent_path=building["entityPath"])
-    lobby = create_entity(project_id, "space", "Main Lobby", parent_path=storey["entityPath"])
-    plant_room = create_entity(project_id, "space", "Plant Room", parent_path=storey["entityPath"])
-    zone = create_entity(project_id, "zone", "Public Areas", parent_path=site["entityPath"])
-    group = create_entity(project_id, "group", "Life Safety Assets", parent_path="project")
-    door_type = create_entity(project_id, "door-type", "Northstar Door Model X", parent_path="project")
-    pump_type = create_entity(project_id, "pump-type", "Northstar Inline Pump P-100", parent_path="project")
-    door = create_entity(
-        project_id,
-        "door",
-        "Lobby Fire Door",
-        parent_path=lobby["entityPath"],
-        type_path=door_type["entityPath"],
-    )
-    assembly = create_entity(project_id, "assembly", "Plant Room Pump Assembly", parent_path=storey["entityPath"])
-    pump = create_entity(
-        project_id,
-        "pump",
-        "Primary Circulation Pump",
-        parent_path=assembly["entityPath"],
-        type_path=pump_type["entityPath"],
-    )
-
-    motor = create_record(
-        "manufacturer",
-        "product",
-        "Northstar Motor M-5",
-        ifc_class="IfcPumpType",
-        data={"model": "M-5", "ratedPowerKw": 5.5, "voltage": "400 V"},
-    )
-    motor_revision = publish_record("manufacturer", motor)
-    pump_product = create_record(
-        "manufacturer",
-        "product",
-        "Northstar Inline Pump P-100",
-        ifc_class="IfcPumpType",
-        sources=[source_record(motor_revision, quantity=1, unit="each")],
-        data={"model": "P-100", "flowRateLpm": 420, "headMetres": 28},
-    )
-    datasheet = post("manufacturer", f"/clip/v1/supply-chain/records/{pump_product['id']}/documents", {
-        "name": "Northstar-P100-datasheet.txt",
-        "mediaType": "text/plain",
-        "content": base64.b64encode(
-            b"Northstar P-100 | 420 L/min | 28 m head | 5.5 kW motor\n"
-        ).decode("ascii"),
-        "visibility": "public",
-        "expectedRevision": pump_product["revision"],
-    })
-    pump_product["revision"] = datasheet["recordRevision"]
-    pump_revision = publish_record("manufacturer", pump_product)
+    spatial_paths = {
+        "site": "site", "building": "building", "storey": "building/storey-1",
+        "lobby": "building/storey-1/lobby", "plantRoom": "building/storey-1/plant-room",
+        "corridor": "building/storey-1/corridor", "zone": "zone/public",
+        "group": "group/life-safety", "assembly": "building/storey-1/plant-room/assembly",
+    }
+    pump_revision = products["pump"]
 
     post("supplier", "/clip/v1/supply-chain/catalogue/discover", {
         "authorityDid": peer_did("manufacturer"),
@@ -657,7 +678,7 @@ def seed_showcase(state: dict) -> None:
     put(
         "owner",
         f"/clip/v1/supply-chain/projects/{quote(project_id, safe='')}/senders",
-        {"expectedRevision": 0, "senders": [peer_did("main_contractor")]},
+        {"expectedRevision": 0, "senders": [peer_did("main_contractor"), peer_did("manufacturer")]},
     )
     contractor_connection = post("main_contractor", "/clip/v1/supply-chain/projects/connect", {
         "authorityDid": peer_did("owner"),
@@ -674,10 +695,10 @@ def seed_showcase(state: dict) -> None:
         sources=[source_record(contractor_offer_revision)],
         project_id=project_id,
         data={
-            "quantity": 2,
+            "quantity": 1,
             "unit": "each",
             "batch": "NW-2026-10",
-            "serials": ["P100-NW-001", "P100-NW-002"],
+            "serials": ["P100-NW-001"],
         },
     )
     delivery_document = post(
@@ -687,7 +708,7 @@ def seed_showcase(state: dict) -> None:
             "name": "North-Wing-delivery-note.txt",
             "mediaType": "text/plain",
             "content": base64.b64encode(
-                b"Delivery to North Wing plant room; two serialized pumps.\n"
+                b"Delivery to North Wing plant room; one serialized pump.\n"
             ).decode("ascii"),
             "visibility": "private",
             "expectedRevision": delivery["revision"],
@@ -723,6 +744,54 @@ def seed_showcase(state: dict) -> None:
         },
     )
 
+    manufacturer_connection = post("manufacturer", "/clip/v1/supply-chain/projects/connect", {
+        "authorityDid": peer_did("owner"), "projectId": project_id,
+    })
+    if manufacturer_connection["projectId"] != project_id or manufacturer_connection["local"]:
+        raise RuntimeError("Manufacturer did not connect to the owner project")
+    direct_supplies = {}
+    for name, serials in (
+        ("door", ["NDX-NW-001", "NDX-NW-002"]),
+        ("pump", ["P100-NW-002"]),
+    ):
+        product = products[name]
+        offer = create_record(
+            "manufacturer", "offering", f"Northstar {name.title()} Direct Offer",
+            ifc_class=product["ifcClass"], sources=[source_record(product)],
+            data={"route": "Direct from manufacturer"},
+        )
+        offer_revision = publish_record("manufacturer", offer)
+        supply = create_record(
+            "manufacturer", "supply", f"North Wing Direct {name.title()} Delivery",
+            ifc_class=product["ifcClass"], sources=[source_record(offer_revision)],
+            project_id=project_id,
+            data={"quantity": len(serials), "unit": "each", "serials": serials},
+        )
+        direct_supplies[name] = submit_and_accept(
+            "manufacturer", "owner", project_id, supply,
+        )["acceptedRecord"]
+    door_installations = []
+    for name, serial, location in (
+        ("Lobby Fire Door", "NDX-NW-001", "Main Lobby"),
+        ("Corridor Fire Door", "NDX-NW-002", "Service Corridor"),
+    ):
+        door_installations.append(create_record(
+            "owner", "installation", name, ifc_class="IfcDoor",
+            sources=[source_record(direct_supplies["door"], quantity=1, unit="each", serials=[serial])],
+            project_id=project_id, data={"location": location, "status": "installed"},
+        ))
+    direct_pump = create_record(
+        "owner", "installation", "Standby Circulation Pump", ifc_class="IfcPump",
+        sources=[source_record(direct_supplies["pump"], quantity=1, unit="each", serials=["P100-NW-002"])],
+        project_id=project_id, data={"location": "Plant Room", "status": "commissioned"},
+    )
+    connect_installations(project_id, [
+        (spatial_paths["lobby"], door_installations[0]),
+        (spatial_paths["corridor"], door_installations[1]),
+        (spatial_paths["assembly"], installation),
+        (spatial_paths["plantRoom"], direct_pump),
+    ])
+
     inspector_project = create_project("inspector", "North Wing Inspection Review")
     inspector_project_id = inspector_project["projectId"]
     put(
@@ -748,7 +817,7 @@ def seed_showcase(state: dict) -> None:
         f"/clip/v1/projects/{quote(project_id, safe='')}/invites",
         {"role": "viewer", "expiresHours": 168},
     )
-    join_ack = post("relay", "/clip/v1/projects/invites/redeem", {"code": invitation["code"]})
+    join_ack = post("inspector", "/clip/v1/projects/invites/redeem", {"code": invitation["code"]})
     join_request_id = join_ack["payload"]["joinRequestId"]
     join_requests = request(
         "owner",
@@ -761,34 +830,32 @@ def seed_showcase(state: dict) -> None:
         "expectedRevision": join_requests.json()["revision"],
     })
 
-    post("relay", "/clip/v1/node/storage/opt-in", {"opt_in": True})
+    post("inspector", "/clip/v1/node/storage/opt-in", {"opt_in": True})
     placement = post("owner", f"/clip/v1/evidence/{evidence_id}/replicate", {
-        "peerDid": peer_did("relay"),
+        "peerDid": peer_did("inspector"),
     })
     if len(placement["receipts"]) != evidence["manifest"]["manifest"]["fragmentCount"]:
-        raise RuntimeError("Relay did not acknowledge every encrypted evidence fragment")
+        raise RuntimeError("Inspector did not acknowledge every encrypted evidence fragment")
 
     replication_ack = post("owner", "/clip/v1/replication/push", {
-        "peerDid": peer_did("relay"),
+        "peerDid": peer_did("inspector"),
         "datasetId": DATASET_ID,
     })
     state.update({
         "showcaseProjectId": project_id,
         "showcaseEntities": {
-            "site": site["entityPath"],
-            "building": building["entityPath"],
-            "storey": storey["entityPath"],
-            "lobby": lobby["entityPath"],
-            "plantRoom": plant_room["entityPath"],
-            "zone": zone["entityPath"],
-            "group": group["entityPath"],
-            "doorType": door_type["entityPath"],
-            "pumpType": pump_type["entityPath"],
-            "door": door["entityPath"],
-            "assembly": assembly["entityPath"],
-            "pump": pump["entityPath"],
+            "doorType": product_path((products["door"]["authorityDid"], products["door"]["id"])),
+            "pumpType": product_path((pump_revision["authorityDid"], pump_revision["id"])),
+            "door": door_installations[0]["graphPath"],
+            "secondDoor": door_installations[1]["graphPath"],
+            "pump": installation["graphPath"],
+            "directPump": direct_pump["graphPath"],
         },
+        "spatialEntities": spatial_paths,
+        "manufacturerDoorId": products["door"]["id"],
         "manufacturerPumpId": pump_revision["id"],
+        "componentManufacturerDid": peer_did("component_manufacturer"),
+        "manufacturerMotorId": products["motor"]["id"],
         "supplierOfferId": supplier_offer_revision["id"],
         "contractorOfferId": contractor_offer_revision["id"],
         "deliveryRecordId": delivery["id"],
@@ -800,13 +867,64 @@ def seed_showcase(state: dict) -> None:
         "evidenceId": evidence_id,
         "evidenceFragmentCount": len(placement["receipts"]),
         "replicationDigest": replication_ack["payload"]["digest"],
-        "relayDid": peer_did("relay"),
-        "relayJoinRequestId": join_request_id,
+        "replicaPeerDid": peer_did("inspector"),
+        "viewerJoinRequestId": join_request_id,
     })
+
+
+def connect_installations(project_id: str, placements: list[tuple[str, dict]]) -> None:
+    datasets = request("owner", "GET", "/ifc/v1/datasets")
+    datasets.raise_for_status()
+    sequence = 0
+    schema_digest = None
+    for dataset in datasets.json()["items"]:
+        if dataset["datasetId"] == project_id:
+            schema_digest = dataset["schemaDigest"]
+        history = request("owner", "GET", f"/ifc/v1/datasets/{quote(dataset['datasetId'], safe='')}/history")
+        history.raise_for_status()
+        sequence = max([sequence, *[item["receipt"]["sequence"] for item in history.json()["items"]]])
+    if schema_digest is None:
+        raise RuntimeError("Installation project is missing from the owner's datasets")
+    response = request("owner", "GET", f"/ifc/v1/datasets/{quote(project_id, safe='')}/graph")
+    response.raise_for_status()
+    graph = response.json()
+    operations = []
+    for parent, record in placements:
+        source = graph["entities"][record["graphPath"]]["components"][SOURCE_SCHEMA]
+        source["properties"]["locationReference"] = {
+            "authorityDid": peer_did("owner"), "datasetId": DATASET_ID, "entityPath": parent,
+        }
+        operations.append({"action": "contribute", "node": {
+            "path": record["graphPath"], "attributes": {SOURCE_SCHEMA: source},
+        }})
+    proposal = {
+        "@context": ["https://w3id.org/security/data-integrity/v2", {"@vocab": "urn:clip:protocol:"}],
+        "transactionId": str(uuid4()), "actorDid": peer_did("owner"),
+        "target": {"authorityDid": peer_did("owner"), "datasetId": project_id},
+        "operations": operations,
+        "expectedSequence": sequence, "schemaDigest": schema_digest, "created": _utc_now(),
+    }
+    normalized = IfcGraphProposalTransaction.model_validate(
+        _sign_transaction(proposal, "owner", "assertionMethod")
+    ).model_dump(mode="json", by_alias=True, exclude={"proof"})
+    pending = post("owner", "/ifc/v1/proposals", _sign_transaction(normalized, "owner", "assertionMethod"))
+    receipt = post("owner", "/ifc/v1/decisions", _sign_transaction({
+        "@context": proposal["@context"], "transactionId": str(uuid4()),
+        "actorDid": peer_did("owner"), "decision": "accept",
+        "proposalId": pending["proposalId"], "proposalDigest": pending["proposalDigest"],
+        "expectedSequence": sequence, "created": _utc_now(),
+    }, "owner", "capabilityInvocation"))
+    if not receipt["accepted"]:
+        raise RuntimeError("Owner did not accept the physical installation placements")
 
 
 def verify() -> None:
     state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    if "spatialModelDatasetId" not in state:
+        raise RuntimeError(
+            "This demo was seeded before the shared campus structure. "
+            "Stop the demo services and run examples\\run-network.ps1 without -KeepData."
+        )
     product = get_component(
         "owner",
         state["datasetId"],
@@ -867,6 +985,44 @@ def verify() -> None:
     missing_entities = set(state["showcaseEntities"].values()) - set(graph["entities"])
     if missing_entities:
         raise AssertionError(f"Showcase IFC graph is missing entities: {sorted(missing_entities)}")
+    expected_products = {
+        "doorType": (state["manufacturerDoorId"], ["door", "secondDoor"]),
+        "pumpType": (state["manufacturerPumpId"], ["pump", "directPump"]),
+    }
+    for type_name, (record_id, asset_names) in expected_products.items():
+        type_path = state["showcaseEntities"][type_name]
+        definitions = [
+            path for path, entity in graph["entities"].items()
+            if entity["components"].get(IDENTITY_SCHEMA, {}).get("recordId") == record_id
+        ]
+        if definitions != [type_path]:
+            raise AssertionError(f"Expected one shared {type_name}, got {definitions}")
+        for asset_name in asset_names:
+            asset_path = state["showcaseEntities"][asset_name]
+            if graph["entities"][asset_path]["inherits"].get("manufacturerType") != type_path:
+                raise AssertionError(f"{asset_name} does not use the shared manufacturer type")
+            location = graph["entities"][asset_path]["components"][SOURCE_SCHEMA]["properties"].get("locationReference")
+            if not location or location["datasetId"] != state["spatialModelDatasetId"]:
+                raise AssertionError(f"{asset_name} does not reference the single owner spatial model")
+    motor_path = product_path((state["componentManufacturerDid"], state["manufacturerMotorId"]))
+    motor_identity = graph["entities"][motor_path]["components"][IDENTITY_SCHEMA]
+    if motor_identity["authorityDid"] != peer_did("component_manufacturer"):
+        raise AssertionError("Motor is not attributed to the independent component manufacturer")
+    pump_components = graph["entities"][state["showcaseEntities"]["pumpType"]]["components"]
+    if motor_path not in pump_components["urn:clip:construction:component-types:v1"]:
+        raise AssertionError("Northstar pump does not reference the Aster manufacturer's motor")
+    legacy_response = request(
+        "owner", "GET", f"/ifc/v1/datasets/{quote(DATASET_ID, safe='')}/graph",
+    )
+    legacy_response.raise_for_status()
+    spatial_graph = legacy_response.json()
+    for path in state["spatialEntities"].values():
+        if path not in spatial_graph["entities"] or path in graph["entities"]:
+            raise AssertionError(f"Spatial entity {path} must be authored only once in the owner spatial model")
+    for name, record_id in (("door", state["manufacturerDoorId"]), ("pump", state["manufacturerPumpId"])):
+        identity = legacy_response.json()["entities"][f"types/{name}"]["components"][IDENTITY_SCHEMA]
+        if identity["authorityDid"] != peer_did("manufacturer") or identity["recordId"] != record_id:
+            raise AssertionError(f"Imported {name} type does not share the manufacturer product identity")
 
     accepted_supply = request(
         "owner",
@@ -889,15 +1045,15 @@ def verify() -> None:
         item for item in project_response.json()["items"]
         if item["projectId"] == state["showcaseProjectId"]
     )
-    if project["members"].get(state["relayDid"]) != "viewer":
-        raise AssertionError(f"Relay invite was not accepted as a project Viewer: {project['members']}")
+    if project["members"].get(state["replicaPeerDid"]) != "viewer":
+        raise AssertionError(f"Inspector invite was not accepted as a project Viewer: {project['members']}")
 
     evidence_response = request("owner", "GET", f"/clip/v1/evidence/{state['evidenceId']}")
     evidence_response.raise_for_status()
-    relay_storage = request("relay", "GET", "/clip/v1/node/storage")
-    relay_storage.raise_for_status()
-    if relay_storage.json()["fragment_count"] < state["evidenceFragmentCount"]:
-        raise AssertionError(f"Relay does not hold all seeded evidence fragments: {relay_storage.json()}")
+    inspector_storage = request("inspector", "GET", "/clip/v1/node/storage")
+    inspector_storage.raise_for_status()
+    if inspector_storage.json()["fragment_count"] < state["evidenceFragmentCount"]:
+        raise AssertionError(f"Inspector does not hold all seeded evidence fragments: {inspector_storage.json()}")
     replication_response = request("owner", "GET", "/clip/v1/replication/status")
     replication_response.raise_for_status()
     if not any(

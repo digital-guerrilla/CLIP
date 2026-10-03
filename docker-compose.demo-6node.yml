@@ -88,7 +88,7 @@ services:
       DATABASE_URL: "sqlite+aiosqlite:////demo/inspector.db"
       DOCUMENT_STORAGE_DIR: "/demo/documents/inspector"
       NODE_ROLE: "inspector"
-  relay:
+  component-manufacturer:
     build: ./node
     network_mode: "service:manufacturer"
     depends_on: [manufacturer]
@@ -99,7 +99,7 @@ services:
       NODE_API_BASE: "http://127.0.0.1:8106"
       DID_WEB_ID: "did:web:127.0.0.1%3A8106"
       DID_VERIFICATION_METHOD: "did:web:127.0.0.1%3A8106#authority-key"
-      PRIVATE_KEY_FILE: "/demo/relay.key"
-      DATABASE_URL: "sqlite+aiosqlite:////demo/relay.db"
-      DOCUMENT_STORAGE_DIR: "/demo/documents/relay"
-      NODE_ROLE: "relay"
+      PRIVATE_KEY_FILE: "/demo/component_manufacturer.key"
+      DATABASE_URL: "sqlite+aiosqlite:////demo/component_manufacturer.db"
+      DOCUMENT_STORAGE_DIR: "/demo/documents/component_manufacturer"
+      NODE_ROLE: "manufacturer"

@@ -7,12 +7,12 @@ New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
 
 $seedDids = "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
 $nodes = @(
-    @{ Name="Manufacturer"; Port=8101; Role="manufacturer" },
-    @{ Name="Supplier"; Port=8102; Role="supplier" },
-    @{ Name="Contractor"; Port=8103; Role="main_contractor" },
-    @{ Name="Owner"; Port=8104; Role="owner" },
-    @{ Name="Inspector"; Port=8105; Role="inspector" },
-    @{ Name="Relay"; Port=8106; Role="relay" }
+    @{ Name="Northstar Manufacturer"; Port=8101; Role="manufacturer"; Storage="manufacturer" },
+    @{ Name="Supplier"; Port=8102; Role="supplier"; Storage="supplier" },
+    @{ Name="Contractor"; Port=8103; Role="main_contractor"; Storage="main_contractor" },
+    @{ Name="Owner"; Port=8104; Role="owner"; Storage="owner" },
+    @{ Name="Inspector"; Port=8105; Role="inspector"; Storage="inspector" },
+    @{ Name="Aster Motor Manufacturer"; Port=8106; Role="manufacturer"; Storage="component_manufacturer" }
 )
 
 foreach ($node in $nodes) {
@@ -20,7 +20,7 @@ foreach ($node in $nodes) {
         throw "Port $($node.Port) is already in use. Stop that process and run the demo again."
     }
     if (-not $KeepData) {
-        $databasePath = Join-Path $dataDirectory "$($node.Role).db"
+        $databasePath = Join-Path $dataDirectory "$($node.Storage).db"
         foreach ($databaseFile in @(
             $databasePath,
             "$databasePath-wal",
@@ -29,7 +29,7 @@ foreach ($node in $nodes) {
         )) {
             Remove-Item $databaseFile -Force -ErrorAction SilentlyContinue
         }
-        Remove-Item (Join-Path $dataDirectory "documents/$($node.Role)") -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $dataDirectory "documents\$($node.Storage)") -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -45,9 +45,9 @@ Set-Location '$root'
 `$env:NODE_DOMAIN = '127.0.0.1:$($node.Port)'
 `$env:NODE_API_BASE = 'http://127.0.0.1:$($node.Port)'
 `$env:CLIP_DEMO_OPEN_ACCESS = 'true'
-`$env:DATABASE_URL = 'sqlite+aiosqlite:///./examples/data/$($node.Role).db'
-`$env:PRIVATE_KEY_FILE = './examples/data/$($node.Role).key'
-`$env:DOCUMENT_STORAGE_DIR = './examples/data/documents/$($node.Role)'
+`$env:DATABASE_URL = 'sqlite+aiosqlite:///./examples/data/$($node.Storage).db'
+`$env:PRIVATE_KEY_FILE = './examples/data/$($node.Storage).key'
+`$env:DOCUMENT_STORAGE_DIR = './examples/data/documents/$($node.Storage)'
 `$env:CLIP_GOSSIP_ENABLED = 'true'
 `$env:CLIP_GOSSIP_SEEDS = '$seedDids'
 `$env:CLIP_TRUSTED_PUBLISHERS = '$seedDids'

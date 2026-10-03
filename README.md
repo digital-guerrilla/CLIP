@@ -22,13 +22,13 @@ pip install -r requirements.txt
 .\examples\verify-network.ps1
 ```
 
-The six authorities run on ports 8101-8106: manufacturer, supplier, main
-contractor, owner, inspector and relay. Open <http://127.0.0.1:8104/ui> or
+The six authorities run on ports 8101-8106: Northstar manufacturer, supplier, main
+contractor, owner, inspector and Aster component manufacturer. Open <http://127.0.0.1:8104/ui> or
 <http://127.0.0.1:8104/docs>. The seed includes a hierarchical North Wing IFC
 model with inherited door/pump product data, signed installation and
 commissioning history, manufacturer-to-contractor sourcing, private delivery
 documents, owner acceptance, inspector handover, a Viewer invitation, encrypted
-evidence fragments, signed replication receipts and five DID gossip peers. The
+evidence fragments (stored by the inspector), signed replication receipts and five DID gossip peers. The
 local demo grants unauthenticated local operator access to all six nodes; keep
 it on loopback and never deploy the demo configuration. See the walkthrough in
 [Supply-chain workflows](docs/supply-chain-workflows.md).
@@ -61,6 +61,57 @@ Project graph resolution shares manufacturer product definitions by original
 authority DID and product ID across direct supply, supplier chains and nested
 components. Authorised console refreshes resolve verified published updates once
 for every reference; pinned graph views and signed issue history remain unchanged.
+
+The demo uses one Northstar door product identity and one P-100 pump product
+identity across its imported IFC example and North Wing Renewal. Renewal has two
+distinct door installations in the lobby/corridor and two pump installations:
+one supplied through the supplier/contractor chain and one directly from the
+manufacturer. Northstar's pump references the independently published Aster M-5
+motor from the second manufacturer on port 8106. Both manufacturers' signed
+product revisions federate into the same project; the motor is a separate
+component type, not another P-100. The inspector also demonstrates optional
+evidence storage and replica placement, so a dedicated relay is no longer needed.
+The entity network shares type nodes by manufacturer identity (never by name),
+keeps physical assets and delivery records separate, and labels **Contains**,
+**Type**, **Direct supply / Supply via**, **Allocated from** and **Component type**
+relationships separately. Catalogue membership is **Lists type**, not a physical
+installation. Rebuild existing demo data with a fresh `run-network.ps1` start
+(stop the six demo services first); `-KeepData` does not migrate old seed data.
+North Wing Campus, its building, storey, spaces, groups and pump assembly are
+authored once in the owner's spatial dataset. Renewal installations reference
+those exact locations by authority DID, dataset ID and entity path through
+`source.properties.locationReference`; they do not recreate the campus.
+Selecting the Renewal dataset also includes its referenced locations and their
+containment ancestors, but not unrelated assets from the spatial dataset.
+Explicit `urn:clip:construction:entity-identity:v1` component addresses can identify
+contributions to the same entity across datasets. Their diagram node retains the
+contributing record addresses and provenance; matching names alone never merge.
+
+Diagram arrows show **contribution flow**: component type to assembled product,
+product type to installed asset, upstream source to offering/delivery, and
+delivery or work event to the asset. **Contains** remains parent to child and is
+visually distinct. IFC dependency and inheritance data are not rewritten merely
+to reverse their presentation.
+Both manufacturers use the manufacturer business role, with separate databases
+and signing keys (`manufacturer` and `component_manufacturer`).
+
+In **Assets**, drag a node to rearrange it; its connecting arrows follow.
+Every node displays a small **Data owner** label. Shared product types identify
+their manufacturer authority; facilities, assets and events identify their record
+authority, and issued snapshots identify the upstream issuer. Hover for the full
+owner DID. Record authority is distinct from an installer or event contributor.
+Drag the background to pan, use the wheel to zoom, or choose **Fit entity network**.
+Right-click any node, press **L** / **Shift+F10** on a focused node, or select it
+and choose **Show lineage** to see just its upstream deliveries, offerings,
+manufacturer types, component products and physical location ancestors.
+Lineage does not pull in sibling assets merely because they share a type or room.
+For a product type, it also includes the installations using that type.
+Upstream issue snapshots are read-only provenance, not additional local assets.
+**Show full graph** or **Escape** exits lineage. **Reset layout** restores the
+automatic layout for the current view. Arrow keys move a focused node (Shift
+moves further). Positions and zoom survive refreshes and selection changes in
+the current page, separately for each dataset scope and lineage view; they do
+not modify product/asset data or persist after a page reload.
 
 To invite another organisation, open **Projects > Invite**, select Viewer or
 Contributor, and generate a code. On their own node, the invited organisation

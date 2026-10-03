@@ -796,11 +796,14 @@ main {
   background-image: radial-gradient(var(--line) 1px, transparent 1px);
   background-size: 20px 20px;
 }
-.entity-node { cursor: pointer; }
+.entity-node { cursor: grab; }
+.entity-node.dragging { cursor: grabbing; }
+.entity-node:focus { outline: none; }
+.entity-node:focus circle { stroke: var(--blue); stroke-width: 4px; }
 .entity-node circle { fill: var(--green-light); stroke: var(--green); stroke-width: 1.5px; }
 .entity-node.selected circle, .entity-node:hover circle { fill: var(--blue-light); stroke: var(--blue); stroke-width: 3px; }
 .entity-node text { font-size: 12px; fill: var(--ink); }
-.entity-node .entity-node-kind, .entity-link-label { font-size: 10px; fill: var(--muted); }
+.entity-node .entity-node-kind, .entity-node .entity-node-owner, .entity-link-label { font-size: 10px; fill: var(--muted); }
 .entity-link-label { paint-order: stroke; stroke: white; stroke-width: 4px; }
 .project-row {
   display: flex;

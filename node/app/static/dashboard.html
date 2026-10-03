@@ -274,10 +274,15 @@
           <div class="entity-network-panel">
             <div class="section-heading"><h2>Entity network</h2><div class="graph-tools">
               <span id="entity-network-count" class="muted"></span>
+              <button id="show-lineage" class="secondary" disabled>Show lineage</button>
+              <button id="show-all-entities" class="secondary" hidden>Show full graph</button>
+              <button id="reset-entity-layout" class="secondary">Reset layout</button>
               <button id="fit-entities" class="icon-button" title="Fit entity network" aria-label="Fit entity network"><i data-lucide="maximize"></i></button>
               <button id="new-entity" class="secondary"><i data-lucide="plus"></i>Create entity</button>
             </div></div>
-            <svg id="entity-network" class="entity-network" role="group" aria-label="Entity hierarchy and product inheritance"></svg>
+            <p class="muted">Arrows show contributions flowing into assets: component → product type → installed asset; deliveries and events also point toward the asset. Blue Contains arrows show location, not data flow. Drag nodes to rearrange; drag the background to pan. Right-click a node or choose Show lineage to follow its sources without unrelated assets. Keyboard: arrows move, L shows lineage, Escape returns to the full graph. T = product type; A = physical asset.</p>
+            <p id="entity-lineage-status" class="muted" role="status" aria-live="polite"></p>
+            <svg id="entity-network" class="entity-network" role="group" aria-label="Shared product types, installed assets, locations and supply relationships"></svg>
           </div>
           <aside class="tree-panel">
             <div class="tree-heading">

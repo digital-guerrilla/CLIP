@@ -6,7 +6,8 @@ import logging
 import random
 
 import httpx
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import IntegrityError
 
 from ..config import settings
@@ -92,16 +93,18 @@ async def _upsert_unknown_peer(peer_did: str, discovered_from: str | None = None
     if peer_did == local_did:
         return
     async with AsyncSessionLocal() as session:
-        peer = await session.get(ClipPeerRecord, peer_did)
-        if peer is None:
-            session.add(ClipPeerRecord(
+        await session.execute(
+            insert(ClipPeerRecord)
+            .values(
                 peer_did=peer_did,
                 status="unknown",
                 generation=0,
                 last_seen=_now(),
                 discovered_from=discovered_from,
-            ))
-            await session.commit()
+            )
+            .on_conflict_do_nothing(index_elements=[ClipPeerRecord.peer_did])
+        )
+        await session.commit()
 
 
 async def bootstrap_did_peers() -> None:
@@ -143,7 +146,7 @@ async def _retry_did_bootstrap(seeds: list[str]) -> None:
 async def accept_signed_peer_digest(
     digest: ClipPeerDigest,
     did_document: dict,
-) -> None:
+) -> bool:
     local_did, _ = _local_peer_identity()
     digest_document = digest.model_dump(mode="json", by_alias=True)
     if digest.from_did == local_did:
@@ -151,31 +154,41 @@ async def accept_signed_peer_digest(
     if not verify_clip_message_proof(digest_document, did_document):
         raise ClipGossipError("Peer digest authentication failed")
 
-    await _upsert_direct_peer(digest.from_did, digest.generation)
+    if not await _upsert_direct_peer(digest.from_did, digest.generation):
+        return False
     for peer_did in digest.known_dids:
         await _upsert_unknown_peer(peer_did, discovered_from=digest.from_did)
+    return True
 
 
-async def _upsert_direct_peer(peer_did: str, generation: int) -> None:
+async def _upsert_direct_peer(peer_did: str, generation: int) -> bool:
     local_did, _ = _local_peer_identity()
     if peer_did == local_did:
-        return
+        return False
     async with AsyncSessionLocal() as session:
-        peer = await session.get(ClipPeerRecord, peer_did)
-        if peer is not None and generation <= peer.generation:
-            raise ClipGossipError("Peer digest generation is stale or replayed")
-        if peer is None:
-            session.add(ClipPeerRecord(
-                peer_did=peer_did,
-                status="alive",
-                generation=generation,
-                last_seen=_now(),
-            ))
-        else:
-            peer.status = "alive"
-            peer.generation = max(peer.generation, generation)
-            peer.last_seen = _now()
+        now = _now()
+        statement = insert(ClipPeerRecord).values(
+            peer_did=peer_did,
+            status="alive",
+            generation=generation,
+            last_seen=now,
+        )
+        result = await session.execute(
+            statement.on_conflict_do_update(
+                index_elements=[ClipPeerRecord.peer_did],
+                set_={
+                    "status": "alive",
+                    "generation": func.max(ClipPeerRecord.generation, statement.excluded.generation),
+                    "last_seen": now,
+                },
+                where=statement.excluded.generation > ClipPeerRecord.generation,
+            ).returning(ClipPeerRecord.peer_did)
+        )
+        if result.scalar_one_or_none() is None:
+            await session.rollback()
+            return False
         await session.commit()
+        return True
 
 
 async def get_clip_peers() -> list[ClipPeerState]:

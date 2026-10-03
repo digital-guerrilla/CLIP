@@ -108,7 +108,7 @@ def custom_openapi():
         "type": "apiKey",
         "in": "header",
         "name": "x-api-key",
-        "description": "Local node API key required for writes and restricted view access.",
+        "description": "Local operator key; not required when CLIP_DEMO_OPEN_ACCESS is enabled.",
     }
     app.openapi_schema = openapi_schema
     return app.openapi_schema

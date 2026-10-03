@@ -49,6 +49,7 @@ docker-compose.override.yml
 *.db
 *.sqlite3
 *.sqlite
+examples/data/clip-demo-state.json
 
 # Logs
 *.log

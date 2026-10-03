@@ -23,6 +23,7 @@ async def get_node_info(
         "role": settings.NODE_ROLE,
         "protocol": "clip/v1",
         "graphApi": "/ifc/v1",
+        "demoOpenAccess": settings.CLIP_DEMO_OPEN_ACCESS,
         "encryptedStorageOptIn": is_storage_opt_in(settings.ENCRYPTED_STORAGE_OPT_IN),
         "encryptedStorageCapacityBytes": settings.ENCRYPTED_STORAGE_CAPACITY_BYTES,
     }

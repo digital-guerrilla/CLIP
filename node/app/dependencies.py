@@ -28,7 +28,8 @@ def get_key_manager() -> NodeKeyManager:
 
 def require_api_key(x_api_key: str = Header(default=None)) -> None:
     """
-    FastAPI dependency — raises 401 if the x-api-key header is missing or wrong.
+    FastAPI dependency — raises 401 unless the configured key is valid or
+    unauthenticated demo access is explicitly enabled.
     Use as: `_: None = Depends(require_api_key)`
     """
     if not valid_api_key(x_api_key):
@@ -36,4 +37,6 @@ def require_api_key(x_api_key: str = Header(default=None)) -> None:
 
 
 def valid_api_key(api_key: str | None) -> bool:
-    return bool(api_key) and secrets.compare_digest(api_key, settings.API_KEY)
+    return settings.CLIP_DEMO_OPEN_ACCESS or (
+        bool(api_key) and secrets.compare_digest(api_key, settings.API_KEY)
+    )

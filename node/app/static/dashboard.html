@@ -32,8 +32,8 @@
         ><button
           id="access"
           class="icon-button"
-          title="Local authorization and storage"
-          aria-label="Local authorization and storage"
+          title="Local authorization and storage settings"
+          aria-label="Local authorization and storage settings"
         >
           <i data-lucide="key-round"></i></button
         ><button
@@ -409,7 +409,7 @@
     <dialog id="access-dialog">
       <form id="access-form">
         <div class="dialog-heading">
-          <h2>Local authorization</h2>
+          <h2 id="access-title">Local authorization</h2>
           <button
             type="button"
             class="icon-button"
@@ -420,7 +420,7 @@
             <i data-lucide="x"></i>
           </button>
         </div>
-        <label
+        <label id="key-control"
           >Local API key<input
             id="key"
             type="password"
@@ -431,7 +431,7 @@
         >
         <p id="access-error" class="form-error" role="alert"></p>
         <div class="dialog-actions">
-          <button type="submit"><i data-lucide="check"></i>Apply</button>
+          <button id="access-submit" type="submit"><i data-lucide="check"></i>Apply</button>
         </div>
       </form>
     </dialog>

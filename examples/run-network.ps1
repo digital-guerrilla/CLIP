@@ -7,12 +7,12 @@ New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
 
 $seedDids = "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
 $nodes = @(
-    @{ Name="Manufacturer"; Port=8101; Role="manufacturer"; Key="manufacturer-key" },
-    @{ Name="Supplier"; Port=8102; Role="supplier"; Key="supplier-key" },
-    @{ Name="Contractor"; Port=8103; Role="main_contractor"; Key="contractor-key" },
-    @{ Name="Owner"; Port=8104; Role="owner"; Key="owner-key" },
-    @{ Name="Inspector"; Port=8105; Role="inspector"; Key="inspector-key" },
-    @{ Name="Relay"; Port=8106; Role="relay"; Key="relay-key" }
+    @{ Name="Manufacturer"; Port=8101; Role="manufacturer" },
+    @{ Name="Supplier"; Port=8102; Role="supplier" },
+    @{ Name="Contractor"; Port=8103; Role="main_contractor" },
+    @{ Name="Owner"; Port=8104; Role="owner" },
+    @{ Name="Inspector"; Port=8105; Role="inspector" },
+    @{ Name="Relay"; Port=8106; Role="relay" }
 )
 
 foreach ($node in $nodes) {
@@ -20,9 +20,21 @@ foreach ($node in $nodes) {
         throw "Port $($node.Port) is already in use. Stop that process and run the demo again."
     }
     if (-not $KeepData) {
-        Remove-Item (Join-Path $dataDirectory "$($node.Role).db") -Force -ErrorAction SilentlyContinue
+        $databasePath = Join-Path $dataDirectory "$($node.Role).db"
+        foreach ($databaseFile in @(
+            $databasePath,
+            "$databasePath-wal",
+            "$databasePath-shm",
+            "$databasePath-journal"
+        )) {
+            Remove-Item $databaseFile -Force -ErrorAction SilentlyContinue
+        }
         Remove-Item (Join-Path $dataDirectory "documents/$($node.Role)") -Recurse -Force -ErrorAction SilentlyContinue
     }
+}
+
+if (-not $KeepData) {
+    Remove-Item (Join-Path $dataDirectory "clip-demo-state.json") -Force -ErrorAction SilentlyContinue
 }
 
 foreach ($node in $nodes) {
@@ -32,7 +44,7 @@ foreach ($node in $nodes) {
 Set-Location '$root'
 `$env:NODE_DOMAIN = '127.0.0.1:$($node.Port)'
 `$env:NODE_API_BASE = 'http://127.0.0.1:$($node.Port)'
-`$env:API_KEY = '$($node.Key)'
+`$env:CLIP_DEMO_OPEN_ACCESS = 'true'
 `$env:DATABASE_URL = 'sqlite+aiosqlite:///./examples/data/$($node.Role).db'
 `$env:PRIVATE_KEY_FILE = './examples/data/$($node.Role).key'
 `$env:DOCUMENT_STORAGE_DIR = './examples/data/documents/$($node.Role)'

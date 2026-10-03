@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:clip:spec:1.0-draft.1:core",
+  "title": "CLIP 1.0-draft.1 core secured messages",
+  "description": "Structural schema only. Kind-specific payloads, cryptography, DID policy, freshness and graph semantics require the accompanying specification. Publications, peer digests and optional workflow/evidence profiles are not covered.",
+  "oneOf": [
+    {"$ref": "#/$defs/componentProposal"},
+    {"$ref": "#/$defs/graphProposal"},
+    {"$ref": "#/$defs/decision"},
+    {"$ref": "#/$defs/receipt"},
+    {"$ref": "#/$defs/serviceMessage"}
+  ],
+  "$defs": {
+    "did": {"type": "string", "pattern": "^did:web:.+$"},
+    "identifier": {"type": "string", "minLength": 1},
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "counter": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "context": {
+      "const": [
+        "https://w3id.org/security/data-integrity/v2",
+        {"@vocab": "urn:clip:protocol:"}
+      ]
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["@context", "type", "cryptosuite", "created", "verificationMethod", "proofPurpose", "proofValue"],
+      "properties": {
+        "@context": {"$ref": "#/$defs/context"},
+        "type": {"const": "DataIntegrityProof"},
+        "cryptosuite": {"const": "eddsa-jcs-2022"},
+        "created": {"$ref": "#/$defs/timestamp"},
+        "verificationMethod": {"type": "string", "pattern": "^did:web:.+#[^#]+$"},
+        "proofPurpose": {"enum": ["assertionMethod", "capabilityInvocation", "authentication"]},
+        "proofValue": {"type": "string", "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$"}
+      }
+    },
+    "assertionProof": {
+      "allOf": [
+        {"$ref": "#/$defs/proof"},
+        {"properties": {"proofPurpose": {"const": "assertionMethod"}}}
+      ]
+    },
+    "capabilityProof": {
+      "allOf": [
+        {"$ref": "#/$defs/proof"},
+        {"properties": {"proofPurpose": {"const": "capabilityInvocation"}}}
+      ]
+    },
+    "authenticationProof": {
+      "allOf": [
+        {"$ref": "#/$defs/proof"},
+        {"properties": {"proofPurpose": {"const": "authentication"}}}
+      ]
+    },
+    "datasetAddress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authorityDid", "datasetId"],
+      "properties": {
+        "authorityDid": {"$ref": "#/$defs/did"},
+        "datasetId": {"$ref": "#/$defs/identifier"}
+      }
+    },
+    "componentAddress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authorityDid", "datasetId", "entityPath", "componentSchemaId"],
+      "properties": {
+        "authorityDid": {"$ref": "#/$defs/did"},
+        "datasetId": {"$ref": "#/$defs/identifier"},
+        "entityPath": {"$ref": "#/$defs/identifier"},
+        "componentSchemaId": {"$ref": "#/$defs/identifier"}
+      }
+    },
+    "change": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["action", "value"],
+          "properties": {"action": {"const": "set"}, "value": {"not": {"type": "null"}}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["action"],
+          "properties": {"action": {"const": "remove"}}
+        }
+      ]
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "children", "inherits", "attributes"],
+      "properties": {
+        "path": {"$ref": "#/$defs/identifier"},
+        "children": {"$ref": "#/$defs/edges"},
+        "inherits": {"$ref": "#/$defs/edges"},
+        "attributes": {"type": "object"}
+      }
+    },
+    "edges": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [{"$ref": "#/$defs/identifier"}, {"type": "null"}]
+      }
+    },
+    "proposalFields": {
+      "type": "object",
+      "required": ["@context", "transactionId", "actorDid", "target", "expectedSequence", "schemaDigest", "created", "proof"],
+      "properties": {
+        "@context": {"$ref": "#/$defs/context"},
+        "transactionId": {"$ref": "#/$defs/uuid"},
+        "actorDid": {"$ref": "#/$defs/did"},
+        "target": {"type": "object"},
+        "expectedSequence": {"$ref": "#/$defs/counter"},
+        "schemaDigest": {"$ref": "#/$defs/digest"},
+        "created": {"$ref": "#/$defs/timestamp"},
+        "proof": {"$ref": "#/$defs/assertionProof"}
+      }
+    },
+    "componentProposal": {
+      "allOf": [
+        {"$ref": "#/$defs/proposalFields"},
+        {
+          "required": ["change"],
+          "properties": {
+            "target": {"$ref": "#/$defs/componentAddress"},
+            "change": {"$ref": "#/$defs/change"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "graphProposal": {
+      "allOf": [
+        {"$ref": "#/$defs/proposalFields"},
+        {
+          "required": ["operations"],
+          "properties": {
+            "target": {"$ref": "#/$defs/datasetAddress"},
+            "operations": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["action", "node"],
+                "properties": {
+                  "action": {"enum": ["create", "contribute"]},
+                  "node": {"$ref": "#/$defs/node"}
+                }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["@context", "transactionId", "actorDid", "decision", "proposalId", "proposalDigest", "expectedSequence", "created", "proof"],
+      "properties": {
+        "@context": {"$ref": "#/$defs/context"},
+        "transactionId": {"$ref": "#/$defs/uuid"},
+        "actorDid": {"$ref": "#/$defs/did"},
+        "decision": {"enum": ["accept", "reject"]},
+        "proposalId": {"$ref": "#/$defs/uuid"},
+        "proposalDigest": {"$ref": "#/$defs/digest"},
+        "expectedSequence": {"$ref": "#/$defs/counter"},
+        "created": {"$ref": "#/$defs/timestamp"},
+        "proof": {"$ref": "#/$defs/capabilityProof"}
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["@context", "receiptId", "authorityDid", "transactionId", "accepted", "sequence", "transactionDigest", "created", "proof"],
+      "properties": {
+        "@context": {"$ref": "#/$defs/context"},
+        "receiptId": {"$ref": "#/$defs/uuid"},
+        "authorityDid": {"$ref": "#/$defs/did"},
+        "transactionId": {"$ref": "#/$defs/uuid"},
+        "accepted": {"type": "boolean"},
+        "sequence": {"$ref": "#/$defs/counter"},
+        "transactionDigest": {"$ref": "#/$defs/digest"},
+        "created": {"$ref": "#/$defs/timestamp"},
+        "proof": {"$ref": "#/$defs/assertionProof"}
+      }
+    },
+    "serviceMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["@context", "messageId", "actorDid", "audienceDid", "kind", "payload", "created", "proof"],
+      "properties": {
+        "@context": {"$ref": "#/$defs/context"},
+        "messageId": {"$ref": "#/$defs/uuid"},
+        "actorDid": {"$ref": "#/$defs/did"},
+        "audienceDid": {"$ref": "#/$defs/did"},
+        "kind": {
+          "enum": ["replication", "replicationAcknowledgement", "fragment", "fragmentReceipt", "fragmentRead", "projectRead", "projectView", "projectJoin", "projectJoinAcknowledgement", "projectJoinDecision"]
+        },
+        "payload": {"type": "object"},
+        "created": {"$ref": "#/$defs/timestamp"},
+        "proof": {"$ref": "#/$defs/authenticationProof"}
+      }
+    }
+  }
+}

@@ -21,6 +21,9 @@ Set `DID_WEB_ID`, `DID_VERIFICATION_METHOD`, `NODE_API_BASE`, `API_KEY`,
 file and database together; replacing the key changes the authority's ability
 to verify existing records. Keep operator keys out of source control.
 
+`CLIP_DEMO_OPEN_ACCESS` defaults to `false`. The six-node demo enables it for
+local operator access without API keys; do not enable it outside loopback demos.
+
 DID gossip defaults on. `CLIP_GOSSIP_SEEDS` is a comma-separated list of
 `did:web` identifiers, not URLs. Disabling `CLIP_GOSSIP_ENABLED` stops gossip;
 it does not enable an alternate protocol. Live generations survive restarts,

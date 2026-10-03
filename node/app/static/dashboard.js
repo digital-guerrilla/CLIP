@@ -1434,7 +1434,7 @@ async function refresh() {
       catalog.items.map(async (item) => {
         const base = "/ifc/v1/datasets/" + encodeURIComponent(item.datasetId);
         const [graph, history] = await Promise.all([
-          api(base + "/graph" + ($("key").value ? "?refresh_products=true" : "")),
+          api(base + "/graph" + (info.demoOpenAccess || $("key").value ? "?refresh_products=true" : "")),
           api(base + "/history"),
         ]);
         return {
@@ -1448,6 +1448,14 @@ async function refresh() {
     );
     if (request !== state.request) return;
     state.info = info;
+    if (info.demoOpenAccess) $("key").value = "";
+    $("key-control").hidden = Boolean(info.demoOpenAccess);
+    $("access-title").textContent = info.demoOpenAccess ? "Demo settings" : "Local authorization";
+    $("access-submit").lastChild.textContent = info.demoOpenAccess ? "Save settings" : "Apply";
+    $("access").title = info.demoOpenAccess ? "Demo storage settings" : "Local authorization and storage settings";
+    $("access").setAttribute("aria-label", $("access").title);
+    $("access").replaceChildren(icon(info.demoOpenAccess ? "hard-drive" : "key-round"));
+    icons();
     state.catalog = catalog.items;
     state.graphs = [];
     state.history = [];
@@ -1463,27 +1471,25 @@ async function refresh() {
     });
     state.storage = info.encryptedStorageOptIn;
     $("storage").checked = state.storage;
-    state.authorized = false;
+    state.authorized = Boolean(info.demoOpenAccess);
     state.peers = [];
     state.replicas = [];
     state.acknowledgements = [];
     state.projects = [];
-    if ($("key").value) {
-      try {
-        const [peers, replication, projects] = await Promise.all([
-          api("/clip/v1/network/gossip/peers"),
-          api("/clip/v1/replication/status"),
-          api("/clip/v1/projects"),
-        ]);
-        if (request !== state.request) return;
-        state.peers = peers;
-        state.replicas = replication.replicas;
-        state.acknowledgements = replication.acknowledgements;
-        state.authorized = true;
-        state.projects = projects.items;
-      } catch (error) {
-        failures.push(error.message);
-      }
+    try {
+      const [peers, replication, projects] = await Promise.all([
+        api("/clip/v1/network/gossip/peers"),
+        api("/clip/v1/replication/status"),
+        api("/clip/v1/projects"),
+      ]);
+      if (request !== state.request) return;
+      state.peers = peers;
+      state.replicas = replication.replicas;
+      state.acknowledgements = replication.acknowledgements;
+      state.authorized = true;
+      state.projects = projects.items;
+    } catch (error) {
+      if (error.status !== 401 || $("key").value) failures.push(error.message);
     }
     $("authority-label").textContent = didLabel(info.did);
     $("authority-label").title = info.did;
@@ -1969,8 +1975,8 @@ refresh();
     if (error.status === 409) sc.stale = true;
   }
   function requireAccess() {
-    if ($("key").value) return true;
-    $("access-error").textContent = "Enter the local operator API key to use private supply-chain records.";
+    if (state.authorized) return true;
+    $("access-error").textContent = "Local authorization is required to use private supply-chain records.";
     $("access-dialog").showModal();
     return false;
   }
@@ -1999,7 +2005,7 @@ refresh();
         const catalogue = items(catalogueResponse, "Catalogue");
         if (!Array.isArray(schema.kinds) || !Array.isArray(schema.typeClasses) || !Array.isArray(schema.occurrenceClasses))
           throw new Error("Supply-chain schema returned an invalid supported-class contract.");
-        if (!$("key").value) {
+        if (!state.authorized) {
           if (request !== sc.request) return;
           sc.catalogue = catalogue; sc.schema = schema;
           sc.records = []; sc.projects = []; sc.submissions = []; sc.revisions = [];
@@ -2689,7 +2695,9 @@ refresh();
     await downloadBinary(base + "/documents/" + encodeURIComponent(document.id) + "?" + query, document.name);
   }
   async function downloadBinary(path, name) {
-    const response = await fetch(path, { headers: { "x-api-key": $("key").value } });
+    const headers = {};
+    if ($("key").value) headers["x-api-key"] = $("key").value;
+    const response = await fetch(path, { headers });
     if (!response.ok) {
       const text = await response.text(); let message = text;
       try { const value = JSON.parse(text); message = typeof value.detail === "string" ? value.detail : JSON.stringify(value.detail); } catch { message = "Document read failed (" + response.status + ")."; }

@@ -18,6 +18,7 @@ from node.app.db.orm_models import ClipGossipGeneration
 from node.app.federation.clip_gossip import (
     ClipGossipError,
     _next_generation,
+    _upsert_unknown_peer,
     accept_signed_peer_digest,
     build_signed_peer_digest,
     get_clip_peers,
@@ -160,10 +161,47 @@ class ClipGossipTest(unittest.IsolatedAsyncioTestCase):
             proof_purpose="authentication",
             created=datetime.now(timezone.utc),
         ))
-        await accept_signed_peer_digest(digest, remote_document)
+        self.assertTrue(await accept_signed_peer_digest(digest, remote_document))
+        peers_before_replay = await get_clip_peers()
 
-        with self.assertRaisesRegex(ClipGossipError, "stale or replayed"):
-            await accept_signed_peer_digest(digest, remote_document)
+        self.assertFalse(await accept_signed_peer_digest(digest, remote_document))
+        peers_after_replay = await get_clip_peers()
+        self.assertEqual(peers_after_replay, peers_before_replay)
+
+    async def test_concurrent_bootstrap_and_direct_contact_upserts_are_idempotent(self) -> None:
+        remote_did = "did:web:peer.example"
+        remote_key = nacl.signing.SigningKey(bytes(reversed(range(32))))
+        remote_document = _did_document(remote_did, remote_key)
+        unsigned = {
+            "@context": [
+                "https://w3id.org/security/data-integrity/v2",
+                {"@vocab": "urn:clip:protocol:"},
+            ],
+            "fromDid": remote_did,
+            "generation": 7,
+            "knownDids": [],
+            "created": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        digest = ClipPeerDigest.model_validate(add_data_integrity_proof(
+            unsigned,
+            remote_key,
+            verification_method=f"{remote_did}#gossip-key",
+            proof_purpose="authentication",
+            created=datetime.now(timezone.utc),
+        ))
+
+        results = await asyncio.gather(
+            _upsert_unknown_peer(remote_did, discovered_from="seed"),
+            accept_signed_peer_digest(digest, remote_document),
+            return_exceptions=True,
+        )
+        self.assertIsNone(results[0])
+        self.assertIn(results[1], (True, False))
+        peers = await get_clip_peers()
+        self.assertEqual(len(peers), 1)
+        self.assertEqual(peers[0].did, remote_did)
+        self.assertEqual(peers[0].status, "alive")
+        self.assertEqual(peers[0].generation, 7)
 
     async def test_sync_api_marks_peer_alive_only_after_did_authenticated_contact(self) -> None:
         local_key = NodeKeyManager(bytes(range(32)))
@@ -204,14 +242,21 @@ class ClipGossipTest(unittest.IsolatedAsyncioTestCase):
                 PeerDigestRequest.model_validate({"digest": signed}),
                 key_manager=local_key,
             )
+            peers_after_contact = await get_clip_peers()
+            replay_response = await sync_peer_digest(
+                PeerDigestRequest.model_validate({"digest": signed}),
+                key_manager=local_key,
+            )
 
         self.assertEqual(response.digest.from_did, settings.DID_WEB_ID)
+        self.assertGreater(replay_response.digest.generation, response.digest.generation)
         local_document = _did_document(settings.DID_WEB_ID, nacl.signing.SigningKey(local_key.private_key_bytes))
         self.assertTrue(verify_clip_message_proof(
             response.digest.model_dump(mode="json", by_alias=True),
             local_document,
         ))
         peers = await get_clip_peers()
+        self.assertEqual(peers, peers_after_contact)
         self.assertEqual(len(peers), 1)
         self.assertEqual(peers[0].did, remote_did)
         self.assertEqual(peers[0].status, "alive")

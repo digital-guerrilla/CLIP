@@ -38,8 +38,6 @@ class CLIPClient:
         await self.http.aclose()
 
     async def _request(self, method: str, path: str, *, body=None, private=False, params=None):
-        if private and not self.api_key:
-            raise ValueError("A local API key is required for this operation")
         headers = {"x-api-key": self.api_key} if self.api_key else {}
         response = await self.http.request(method, self.base + path, json=body, params=params, headers=headers)
         response.raise_for_status()
@@ -230,11 +228,10 @@ class CLIPClient:
             private=True))["items"]
 
     async def get_workflow_document(self, record_id: str, document_id: str) -> bytes:
-        if not self.api_key:
-            raise ValueError("A local API key is required for this operation")
+        headers = {"x-api-key": self.api_key} if self.api_key else {}
         response = await self.http.get(
             f"{self.base}/clip/v1/supply-chain/records/{quote(record_id, safe='')}/documents/{quote(document_id, safe='')}",
-            headers={"x-api-key": self.api_key})
+            headers=headers)
         response.raise_for_status()
         return response.content
 
@@ -326,8 +323,6 @@ class CLIPClient:
         return await self._request("POST", f"/clip/v1/evidence/{evidence_id}/repair", body={"peerDid": peer_did}, private=True)
 
     async def decrypt_evidence(self, reference: dict, recipient_did: str, recipient_key: NodeKeyManager):
-        if not self.api_key:
-            raise ValueError("A local API key is required for this operation")
         evidence_id = reference["evidenceId"]
         signed = await self._request("GET", f"/clip/v1/evidence/{evidence_id}", private=True)
         if hashlib.sha256(rfc8785.dumps(signed)).hexdigest() != reference["integrity"] or signed["publisherDid"] != reference["publisherDid"]:
@@ -343,7 +338,11 @@ class CLIPClient:
         key = nacl.public.SealedBox(curve_key).decrypt(base64.b64decode(envelope["wrappedKey"]))
         fragments = []
         for item in manifest["fragments"]:
-            response = await self.http.get(f"{self.base}/clip/v1/evidence/{evidence_id}/fragments/{item['index']}", headers={"x-api-key": self.api_key})
+            headers = {"x-api-key": self.api_key} if self.api_key else {}
+            response = await self.http.get(
+                f"{self.base}/clip/v1/evidence/{evidence_id}/fragments/{item['index']}",
+                headers=headers,
+            )
             response.raise_for_status()
             content = response.content
             if hashlib.sha256(content).hexdigest() != item["digest"]:

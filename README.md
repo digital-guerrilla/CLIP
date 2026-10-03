@@ -24,9 +24,14 @@ pip install -r requirements.txt
 
 The six authorities run on ports 8101-8106: manufacturer, supplier, main
 contractor, owner, inspector and relay. Open <http://127.0.0.1:8104/ui> or
-<http://127.0.0.1:8104/docs>. The seed verifies an imported manufacturer type,
-an owner-accepted installation event and five DID gossip peers. The local
-operator key for the owner demo is `owner-key`; never deploy demo credentials.
+<http://127.0.0.1:8104/docs>. The seed includes a hierarchical North Wing IFC
+model with inherited door/pump product data, signed installation and
+commissioning history, manufacturer-to-contractor sourcing, private delivery
+documents, owner acceptance, inspector handover, a Viewer invitation, encrypted
+evidence fragments, signed replication receipts and five DID gossip peers. The
+local demo grants unauthenticated local operator access to all six nodes; keep
+it on loopback and never deploy the demo configuration. See the walkthrough in
+[Supply-chain workflows](docs/supply-chain-workflows.md).
 
 Business-role consoles open on Projects; the authority network map remains in
 Overview. Verified imports, accepted
@@ -36,8 +41,9 @@ including inherited product data, installation status and publisher origins. Use
 key icon to authorize peer membership and replication controls. The diagram is a
 dependency/receipt view, not live packet telemetry. D3 and Lucide are bundled locally.
 
-Authorize with the key icon to create a private project, add organisation DIDs as
-Viewers or Contributors, and create supported IFC entities without raw JSON.
+Demo node operator access is automatic. On secured nodes, use the key icon to
+authorize before creating a private project, adding organisation DIDs as Viewers
+or Contributors, or creating supported IFC entities without raw JSON.
 Entities inherit their project's access. Manufacturers can create a separate
 public product library. The entity diagram shows containment and type inheritance;
 selecting a node opens its properties, inherited access and signed accepted history.
@@ -82,7 +88,8 @@ Zones/groups are not physical containment parents.
 `run-network.ps1 -KeepData` preserves keys and databases, but seeding an already
 registered dataset returns 409. To revisit persisted state, start services
 without reseeding or use the verification script. A fresh demo start removes
-only the demo databases and document storage, retaining authority keys.
+the demo databases, SQLite sidecars, document storage and generated seed-state
+file, while retaining authority keys.
 
 ## Implemented
 

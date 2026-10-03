@@ -95,7 +95,7 @@ function environment(apiOverride) {
   get("submission-direction").value = "incoming";
   const calls = [];
   let uuid = 0;
-  const state = { info: { did: "did:web:local.example", role: "contractor" }, request: 1 };
+  const state = { info: { did: "did:web:local.example", role: "contractor" }, request: 1, authorized: true };
   const listeners = new Map();
   const document = { getElementById: get, createElement: (tag) => node(tag), body: new Element("body") };
   const context = vm.createContext({
@@ -448,12 +448,24 @@ test("shared API helper sends the local access key and preserves HTTP conflict s
 });
 
 test("authoring without authorization opens existing access dialog and performs no writes", async () => {
-  const { ui, get, calls } = environment();
+  const { ui, get, calls, state } = environment();
   get("key").value = "";
+  state.authorized = false;
   await ui.openRecord("product");
   assert.equal(get("access-dialog").open, true);
-  assert.match(get("access-error").textContent, /local operator API key/);
+  assert.match(get("access-error").textContent, /Local authorization/);
   assert.equal(calls.length, 0);
+});
+
+test("open demo mode loads private supply-chain records without an operator key", async () => {
+  const { ui, get, calls, state } = environment();
+  get("key").value = "";
+  state.info.demoOpenAccess = true;
+  state.authorized = true;
+  await ui.load();
+  assert.ok(calls.some((call) => call.path.endsWith("/records")));
+  assert.ok(calls.some((call) => call.path.endsWith("/projects")));
+  assert.ok(calls.some((call) => call.path.endsWith("/submissions")));
 });
 
 test("guided class validation rejects occurrence classes for product definitions", async () => {

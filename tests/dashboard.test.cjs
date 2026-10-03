@@ -164,3 +164,71 @@ test("authorized Create Project opens a private project form", () => {
   const result = evaluate(`state.authorized=true;openProjectDialog();return {project:$("project-dialog").opened,kind:$("project-kind").value,public:$("project-public").checked};`, { document });
   assert.deepEqual(result, { project: true, kind: "project", public: false });
 });
+
+for (const demoOpenAccess of [true, false]) {
+  test(`dashboard refresh updates an already-rendered access icon (demo=${demoOpenAccess})`, async () => {
+    const elements = new Map();
+    const element = (tagName = "div") => ({
+      tagName, dataset: {}, children: [], value: "", textContent: "",
+      classList: { toggle() {} },
+      setAttribute(name, value) { this[name] = value; },
+      replaceChildren(...children) { this.children = children; },
+      append(child) { this.children.push(child); },
+      querySelector(tag) { return this.children.find((child) => child.tagName === tag) || null; },
+      get firstChild() { return this.children[0]; },
+      get lastChild() { return this.children.at(-1); },
+    });
+    const get = (id) => {
+      if (!elements.has(id)) elements.set(id, element());
+      return elements.get(id);
+    };
+    get("access").append(element("svg"));
+    get("access-submit").append(element("#text"));
+    const graph = { datasetId: "urn:demo" };
+    const responses = {
+      "/clip/v1/node/info": { did: "did:web:owner.example", role: "owner", demoOpenAccess },
+      "/ifc/v1/datasets": { items: [{ datasetId: graph.datasetId }] },
+      "/ifc/v1/datasets/urn%3Ademo/graph": graph,
+      "/ifc/v1/datasets/urn%3Ademo/graph?refresh_products=true": graph,
+      "/ifc/v1/datasets/urn%3Ademo/history": { items: [] },
+      "/clip/v1/network/gossip/peers": [],
+      "/clip/v1/replication/status": { replicas: [], acknowledgements: [] },
+      "/clip/v1/projects": { items: [] },
+    };
+    const renderedIcons = [];
+    let renders = 0;
+    let refreshEvents = 0;
+    const context = vm.createContext({
+      document: { getElementById: get, createElement: element },
+      lucide: {
+        createIcons() {
+          const placeholder = get("access").querySelector("i");
+          if (placeholder) {
+            renderedIcons.push(placeholder.dataset.lucide);
+            get("access").replaceChildren(element("svg"));
+          }
+        },
+      },
+      fetch: async (path) => {
+        assert.ok(Object.hasOwn(responses, path), `Unexpected request: ${path}`);
+        return { ok: true, text: async () => JSON.stringify(responses[path]) };
+      },
+      window: { dispatchEvent() { refreshEvents++; } },
+      CustomEvent: class {},
+      recordRender() { renders++; },
+    });
+    vm.runInContext(script.slice(0, script.indexOf("function activateView")), context);
+    vm.runInContext("render = recordRender; function activateView() {}", context);
+    for (let iteration = 0; iteration < 2; iteration++) {
+      assert.equal(get("access").querySelector("i"), null);
+      assert.equal(await vm.runInContext("refresh()", context), true);
+      assert.equal(get("refresh").disabled, false);
+      assert.equal(get("notice").textContent, "");
+      assert.equal(get("authority-label").title, "did:web:owner.example");
+      assert.equal(vm.runInContext("state.graphs[0].datasetId", context), graph.datasetId);
+    }
+    assert.deepEqual(renderedIcons, Array(2).fill(demoOpenAccess ? "hard-drive" : "key-round"));
+    assert.equal(renders, 2);
+    assert.equal(refreshEvents, 2);
+  });
+}

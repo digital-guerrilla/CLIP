@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     # Static API key for write operations (POST/PUT).
     # Replace with JWT or mTLS in production.
     API_KEY: str = "change-me-before-deployment"
+    # Demo-only switch for unauthenticated local operator access.
+    CLIP_DEMO_OPEN_ACCESS: bool = False
 
     # ------------------------------------------------------------------
     # Federation

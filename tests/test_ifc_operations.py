@@ -92,6 +92,26 @@ class IfcxOperationsTest(unittest.TestCase):
         self.assertEqual(len(self.client.get("/ifc/v1/datasets").json()["items"]), 1)
         self.assertIn("door-1", self.client.get("/ifc/v1/datasets/urn:owner:test/graph").json()["entities"])
 
+    def test_demo_open_access_allows_operator_requests_without_a_key(self):
+        with patch.object(settings, "CLIP_DEMO_OPEN_ACCESS", True):
+            response = self.client.post(
+                "/clip/v1/projects",
+                json={"name": "Open demo project"},
+            )
+            datasets = self.client.get("/ifc/v1/datasets")
+            info = self.client.get("/clip/v1/node/info")
+            self.assertTrue(dependencies.valid_api_key(None))
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertIn(response.json()["projectId"], {
+            item["datasetId"] for item in datasets.json()["items"]
+        })
+        self.assertTrue(info.json()["demoOpenAccess"])
+
+    def test_operator_access_still_requires_a_key_outside_demo_mode(self):
+        with patch.object(settings, "CLIP_DEMO_OPEN_ACCESS", False):
+            self.assertFalse(dependencies.valid_api_key(None))
+            self.assertTrue(dependencies.valid_api_key("test-key"))
+
     def test_request_limits_and_ambiguous_json(self):
         response = self.client.post("/ifc/v1/datasets", content='{"file":{},"file":{}}', headers={**self.headers, "content-type": "application/json"})
         self.assertEqual(response.status_code, 400)

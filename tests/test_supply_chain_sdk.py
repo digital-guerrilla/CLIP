@@ -38,9 +38,18 @@ class SupplyChainSdkTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls[0].headers["x-api-key"], "operator-key")
         self.assertEqual(calls[1].url.params["product_view"], "pinned")
         self.assertEqual(calls[3].url.params["product_view"], "pinned")
+        calls = []
+
+        def respond_without_key(request):
+            calls.append(request)
+            return httpx.Response(200, json={"productResolution": {"definitions": []}})
+
         async with CLIPClient("https://local.example") as client:
-            with self.assertRaisesRegex(ValueError, "local API key"):
-                await client.resolve_graph("project", refresh_products=True)
+            await client.http.aclose()
+            client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond_without_key))
+            await client.resolve_graph("project", refresh_products=True)
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("x-api-key", calls[0].headers)
 
     async def test_project_workflow_uses_local_key_and_escaped_addresses(self):
         calls = []
@@ -74,14 +83,20 @@ class SupplyChainSdkTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(calls[4].content)["role"], "viewer")
         self.assertIn("request%2Fid", str(calls[7].url))
 
-    async def test_project_write_without_local_key_fails_before_network(self):
+    async def test_project_write_without_local_key_is_sent_without_auth_header(self):
+        calls = []
+
+        def respond(request):
+            calls.append(request)
+            return httpx.Response(200, json={"projectId": "demo-project"})
+
         async with CLIPClient("https://local.example") as client:
-            with self.assertRaisesRegex(ValueError, "local API key"):
-                await client.create_project("Private project")
-            with self.assertRaisesRegex(ValueError, "local API key"):
-                await client.get_workflow_document("record", "document")
-            with self.assertRaisesRegex(ValueError, "local API key"):
-                await client.decrypt_evidence({}, "did:web:local.example", NodeKeyManager(bytes(range(32))))
+            await client.http.aclose()
+            client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+            await client.create_project("Demo project")
+            await client.get_workflow_document("record", "document")
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all("x-api-key" not in call.headers for call in calls))
 
     async def test_workflow_wrappers_preserve_versions_and_local_authorization(self):
         calls = []

@@ -1,4 +1,5 @@
 x-demo-environment: &demo-environment
+  CLIP_DEMO_OPEN_ACCESS: "true"
   CLIP_GOSSIP_ENABLED: "true"
   CLIP_GOSSIP_SEEDS: "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
   CLIP_TRUSTED_PUBLISHERS: "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
@@ -27,7 +28,6 @@ services:
       DATABASE_URL: "sqlite+aiosqlite:////demo/manufacturer.db"
       DOCUMENT_STORAGE_DIR: "/demo/documents/manufacturer"
       NODE_ROLE: "manufacturer"
-      API_KEY: "manufacturer-key"
   supplier:
     build: ./node
     network_mode: "service:manufacturer"
@@ -43,7 +43,6 @@ services:
       DATABASE_URL: "sqlite+aiosqlite:////demo/supplier.db"
       DOCUMENT_STORAGE_DIR: "/demo/documents/supplier"
       NODE_ROLE: "supplier"
-      API_KEY: "supplier-key"
   contractor:
     build: ./node
     network_mode: "service:manufacturer"
@@ -59,7 +58,6 @@ services:
       DATABASE_URL: "sqlite+aiosqlite:////demo/main_contractor.db"
       DOCUMENT_STORAGE_DIR: "/demo/documents/main_contractor"
       NODE_ROLE: "main_contractor"
-      API_KEY: "contractor-key"
   owner:
     build: ./node
     network_mode: "service:manufacturer"
@@ -75,7 +73,6 @@ services:
       DATABASE_URL: "sqlite+aiosqlite:////demo/owner.db"
       DOCUMENT_STORAGE_DIR: "/demo/documents/owner"
       NODE_ROLE: "owner"
-      API_KEY: "owner-key"
   inspector:
     build: ./node
     network_mode: "service:manufacturer"
@@ -91,7 +88,6 @@ services:
       DATABASE_URL: "sqlite+aiosqlite:////demo/inspector.db"
       DOCUMENT_STORAGE_DIR: "/demo/documents/inspector"
       NODE_ROLE: "inspector"
-      API_KEY: "inspector-key"
   relay:
     build: ./node
     network_mode: "service:manufacturer"
@@ -107,4 +103,3 @@ services:
       DATABASE_URL: "sqlite+aiosqlite:////demo/relay.db"
       DOCUMENT_STORAGE_DIR: "/demo/documents/relay"
       NODE_ROLE: "relay"
-      API_KEY: "relay-key"

@@ -351,8 +351,23 @@ async def grant_document(record_id: str, document_id: str, body: DocumentGrant,
 
 @router.get("/documents/{document_id}")
 async def read_source_document(document_id: str, authorityDid: str, projectId: str | None = None,
+    recordId: str | None = None, revision: int | None = None,
     session: AsyncSession = Depends(get_db), _: None = Depends(require_api_key)):
-    if authorityDid == service.authority():
+    if recordId is not None or revision is not None:
+        if not recordId or revision is None or revision < 1:
+            raise HTTPException(422, "A published document requires both recordId and a positive revision")
+        row = await session.get(SupplyChainRevision, (authorityDid, recordId, revision))
+        if not row or not row.public:
+            raise HTTPException(404, "Published catalogue revision is not cached at this node")
+        metadata = next((item for item in row.snapshot_json["documents"]
+            if item["id"] == document_id and item["visibility"] == "public" and "content" in item), None)
+        if metadata is None:
+            raise HTTPException(404, "Document is not deliberately public in this revision")
+        try:
+            content = base64.b64decode(metadata["content"], validate=True)
+        except (ValueError, TypeError) as error:
+            raise HTTPException(424, "Cached publication contains invalid document bytes") from error
+    elif authorityDid == service.authority():
         document, content = await service.authorised_document(session, document_id)
         metadata = document.metadata_json
     else:

@@ -456,6 +456,36 @@ class SupplyChainApiTest(unittest.IsolatedAsyncioTestCase):
         original = await self.call("supplier", "GET", f"/submissions/{issue['id']}")
         self.assertEqual(original["issue"], issue["issue"])
 
+    async def test_client_downloads_exact_cached_public_document_without_source_access(self):
+        product = await self.create("manufacturer", "product", "Door", ifcClass="IfcDoorType")
+        original = await self.call("manufacturer", "POST", f"/records/{product['id']}/documents", {
+            "name": "door.txt", "mediaType": "text/plain", "content": base64.b64encode(b"original").decode(),
+            "visibility": "public", "expectedRevision": 1}, 201)
+        product["revision"] = 2
+        await self.publish("manufacturer", product)
+        replacement = await self.call("manufacturer", "POST", f"/records/{product['id']}/documents", {
+            "name": "door.txt", "mediaType": "text/plain", "content": base64.b64encode(b"updated").decode(),
+            "visibility": "public", "expectedRevision": 2, "replacesDocumentId": original["id"]}, 201)
+        product["revision"] = 3
+        await self.publish("manufacturer", product)
+        await self.call("client", "POST", "/catalogue/discover", {"authorityDid": product["authorityDid"]})
+        query = f"?authorityDid={product['authorityDid']}&recordId={product['id']}&revision="
+        route = f"/documents/{replacement['id']}"
+        with patch.object(service, "remote", side_effect=AssertionError("Cached download must not contact source")):
+            self.assertEqual(await self.call("client", "GET", route + query + "3"), b"updated")
+            self.assertEqual(await self.call("client", "GET", f"/documents/{original['id']}" + query + "2"), b"original")
+            await self.call("client", "GET", route + query + "2", status=404)
+            await self.call("client", "GET", route + query + "4", status=404)
+            await self.call("client", "GET", route + query + "3", status=401, auth=False)
+            await self.call("client", "GET", route + f"?authorityDid={product['authorityDid']}&revision=3", status=422)
+        private = await self.call("manufacturer", "POST", f"/records/{product['id']}/documents", {
+            "name": "private.txt", "mediaType": "text/plain", "content": base64.b64encode(b"private").decode(),
+            "visibility": "private", "expectedRevision": 3}, 201)
+        product["revision"] = 4
+        await self.publish("manufacturer", product)
+        await self.call("client", "POST", "/catalogue/discover", {"authorityDid": product["authorityDid"]})
+        await self.call("client", "GET", f"/documents/{private['id']}" + query + "4", status=404)
+
     async def test_deliberate_public_documents_and_source_authorised_private_grants(self):
         value = await self.create("manufacturer", "product", "Documented pump")
         with patch.object(settings, "MAX_DOCUMENT_BYTES", 3):

@@ -47,6 +47,57 @@ test("pinned manufacturer versions are distinct from a shared current definition
   `);
   assert.equal(result, true);
 });
+test("manufacturer documents follow the selected asset and nested components, not unrelated products", () => {
+  const result = evaluate(`
+    const door={path:'door-type',authorityDid:'did:web:m.example',recordId:'door',revision:4,
+      documents:[{id:'new-doc'}],componentPaths:['motor-type']};
+    const motor={path:'motor-type',authorityDid:'did:web:c.example',recordId:'motor',revision:2,
+      documents:[{id:'motor-doc'}],componentPaths:[]};
+    const unrelated={...door,path:'other-type',recordId:'other'};
+    const graph={effectiveComponents:{asset:{}},productResolution:{
+      definitions:[door,motor,unrelated],associations:{asset:['door-type']}}};
+    return {asset:manufacturerDocumentDefinitions({graph,path:'asset'}).map(item=>item.recordId),
+      type:manufacturerDocumentDefinitions({graph,path:'door-type'}).map(item=>item.recordId),
+      other:manufacturerDocumentDefinitions({graph,path:'missing'})};
+  `);
+  assert.deepEqual(result, { asset: ["door", "motor"], type: ["door", "motor"], other: [] });
+});
+test("inspector download uses the exact cached manufacturer revision and reports failures", async () => {
+  const elements = new Map();
+  const make = () => ({
+    children: [], value: "", classList: { toggle() {} },
+    append(...children) { this.children.push(...children); },
+  });
+  const context = vm.createContext({
+    document: {
+      getElementById(id) { if (!elements.has(id)) elements.set(id, make()); return elements.get(id); },
+      createElement: make,
+    },
+    URLSearchParams,
+  });
+  vm.runInContext(script.slice(0, script.indexOf("function activateView")), context);
+  const paths = [];
+  context.recordDownload = async (path, name) => { paths.push({ path, name }); throw Error("Cached evidence unavailable"); };
+  vm.runInContext(`
+    downloadBinary=recordDownload;
+    const definition={path:'type',name:'Door',authorityDid:'did:web:m.example',recordId:'door',
+      revision:4,documents:[{id:'document-4',name:'Door manual.pdf'}],componentPaths:[]};
+    const graph={effectiveComponents:{asset:{}},productResolution:{definitions:[definition],associations:{asset:['type']}}};
+    const parent=$('documents');
+    renderManufacturerDocuments(parent,{graph,path:'asset'});
+  `, context);
+  const button = elements.get("documents").children[1];
+  assert.equal(button.textContent, "Download Door manual.pdf");
+  await button.onclick();
+  const url = new URL(paths[0].path, "http://localhost");
+  assert.equal(url.pathname, "/clip/v1/supply-chain/documents/document-4");
+  assert.equal(url.searchParams.get("authorityDid"), "did:web:m.example");
+  assert.equal(url.searchParams.get("recordId"), "door");
+  assert.equal(url.searchParams.get("revision"), "4");
+  assert.equal(paths[0].name, "Door manual.pdf");
+  assert.equal(button.disabled, false);
+  assert.equal(elements.get("notice").textContent, "Cached evidence unavailable");
+});
 function evaluate(code, globals = {}) {
   const context = vm.createContext(globals);
   vm.runInContext(

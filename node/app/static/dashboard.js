@@ -1568,6 +1568,63 @@ function updateEntityRelationships() {
   $("entity-class").textContent = className ? className + " / IFC4X3_ADD2" : "";
 }
 
+function manufacturerDocumentDefinitions(entry) {
+  const resolution = entry.graph.productResolution;
+  const definitions = new Map((resolution?.definitions || []).map((item) => [item.path, item]));
+  const identity = entry.graph.effectiveComponents[entry.path]?.["urn:clip:construction:product-identity:v1"];
+  const pending = [...(resolution?.associations?.[entry.path] || [])];
+  if (definitions.has(entry.path)) pending.push(entry.path);
+  if (identity) for (const definition of definitions.values())
+    if (definition.authorityDid === identity.authorityDid && definition.recordId === identity.recordId &&
+        definition.revision === identity.revision) pending.push(definition.path);
+  const visited = new Set(), result = [];
+  while (pending.length) {
+    const path = pending.pop();
+    if (visited.has(path)) continue;
+    visited.add(path);
+    const definition = definitions.get(path);
+    if (!definition) continue;
+    if (definition.documents.length) result.push(definition);
+    pending.push(...definition.componentPaths);
+  }
+  return result;
+}
+function renderManufacturerDocuments(parent, entry) {
+  for (const definition of manufacturerDocumentDefinitions(entry)) {
+    parent.append(node("p", definition.name + " / manufacturer revision " + definition.revision, "muted"));
+    for (const document of definition.documents) {
+      const button = node("button", "Download " + document.name, "reference-button");
+      button.type = "button";
+      button.onclick = async () => {
+        button.disabled = true;
+        try {
+          const query = new URLSearchParams({
+            authorityDid: definition.authorityDid, recordId: definition.recordId, revision: String(definition.revision),
+          });
+          await downloadBinary("/clip/v1/supply-chain/documents/" + encodeURIComponent(document.id) + "?" + query, document.name);
+        } catch (error) { notice(error.message, true); }
+        finally { button.disabled = false; }
+      };
+      parent.append(button);
+    }
+  }
+}
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob); const link = node("a");
+  link.href = url; link.download = name; document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function downloadBinary(path, name) {
+  const headers = {};
+  if ($("key").value) headers["x-api-key"] = $("key").value;
+  const response = await fetch(path, { headers });
+  if (!response.ok) {
+    const text = await response.text(); let message = text;
+    try { const value = JSON.parse(text); message = typeof value.detail === "string" ? value.detail : JSON.stringify(value.detail); } catch { message = "Document read failed (" + response.status + ")."; }
+    const error = new Error(message); error.status = response.status; throw error;
+  }
+  saveBlob(await response.blob(), name);
+}
 function renderInspector(entry) {
   const panel = $("asset-inspector");
   panel.replaceChildren();
@@ -1624,6 +1681,8 @@ function renderInspector(entry) {
     property(identity, "Pinned issue revisions", manufacturerType.pinnedRevisions.join(", "));
     property(identity, "Product view", entry.graph.productResolution?.mode || "imported revision");
   }
+  if (manufacturerDocumentDefinitions(entry).length)
+    renderManufacturerDocuments(section("Manufacturer documents"), entry);
   const status = assetStatus(entry);
   if (status) property(identity, "Status", status);
   const sources = entitySources(entry),
@@ -3043,11 +3102,6 @@ refresh();
       $("supply-dialog").close(); await load(true); notice("Attachment retired from the working record. Historical revisions and read grants are unchanged.");
     });
   }
-  function saveBlob(blob, name) {
-    const url = URL.createObjectURL(blob); const link = node("a");
-    link.href = url; link.download = name; document.body.append(link); link.click(); link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
   async function downloadDocument(record, document) {
     if (!requireAccess()) return;
     await downloadBinary(base + "/records/" + encodeURIComponent(record.id) + "/documents/" + encodeURIComponent(document.id), document.name);
@@ -3058,17 +3112,6 @@ refresh();
     const query = new URLSearchParams({ authorityDid: document.authorityDid });
     if (projectId) query.set("projectId", projectId);
     await downloadBinary(base + "/documents/" + encodeURIComponent(document.id) + "?" + query, document.name);
-  }
-  async function downloadBinary(path, name) {
-    const headers = {};
-    if ($("key").value) headers["x-api-key"] = $("key").value;
-    const response = await fetch(path, { headers });
-    if (!response.ok) {
-      const text = await response.text(); let message = text;
-      try { const value = JSON.parse(text); message = typeof value.detail === "string" ? value.detail : JSON.stringify(value.detail); } catch { message = "Document read failed (" + response.status + ")."; }
-      const error = new Error(message); error.status = response.status; throw error;
-    }
-    saveBlob(await response.blob(), name);
   }
   function downloadPublicDocument(document) {
     const bytes = Uint8Array.from(atob(document.content), (character) => character.charCodeAt(0));

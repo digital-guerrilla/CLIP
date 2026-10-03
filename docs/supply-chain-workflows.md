@@ -142,6 +142,16 @@ the node; only an explicit **Refresh** requests new manufacturer publications.
 The console serializes update-enabled graph requests because catalogue caching
 can write to the local database.
 
+Select an installed asset or its manufacturer type in **Facilities & assets**.
+The inspector's **Manufacturer documents** section downloads public documents
+from that resolved revision, including component-product documentation, directly
+from the client's cached signed publication. These downloads do not require a
+new private-document grant or rewrite the original accepted handover attachments.
+Private evidence remains available through its existing record/submission controls.
+The operator-authorized `GET /clip/v1/supply-chain/documents/{documentId}` route
+accepts `authorityDid`, `recordId` and `revision` to read an exact cached public
+document; it does not fall back to a different revision or private evidence.
+
 - `GET /ifc/v1/datasets/{id}/graph?refresh_products=true` verifies and caches
   newly published revisions; it requires the local operator key.
 - `GET /ifc/v1/datasets/{id}/graph?product_view=pinned` resolves each original

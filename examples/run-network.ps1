@@ -5,15 +5,17 @@ $root = Split-Path $PSScriptRoot -Parent
 $dataDirectory = Join-Path $PSScriptRoot "data"
 New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
 
-$seedDids = "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
 $nodes = @(
     @{ Name="Northstar Manufacturer"; Port=8101; Role="manufacturer"; Storage="manufacturer" },
-    @{ Name="Supplier"; Port=8102; Role="supplier"; Storage="supplier" },
+    @{ Name="Wholesale Supplier"; Port=8102; Role="supplier"; Storage="supplier" },
     @{ Name="Contractor"; Port=8103; Role="main_contractor"; Storage="main_contractor" },
-    @{ Name="Owner"; Port=8104; Role="owner"; Storage="owner" },
+    @{ Name="Client / Portfolio Owner"; Port=8104; Role="owner"; Storage="owner" },
     @{ Name="Inspector"; Port=8105; Role="inspector"; Storage="inspector" },
-    @{ Name="Aster Motor Manufacturer"; Port=8106; Role="manufacturer"; Storage="component_manufacturer" }
+    @{ Name="Aster Components Manufacturer"; Port=8106; Role="manufacturer"; Storage="component_manufacturer" },
+    @{ Name="Regional Supplier"; Port=8107; Role="supplier"; Storage="supplier_2" },
+    @{ Name="Specialist Supplier"; Port=8108; Role="supplier"; Storage="supplier_3" }
 )
+$seedDids = ($nodes | ForEach-Object { "did:web:127.0.0.1%3A$($_.Port)" }) -join ","
 
 foreach ($node in $nodes) {
     if (Get-NetTCPConnection -LocalPort $node.Port -State Listen -ErrorAction SilentlyContinue) {
@@ -52,7 +54,7 @@ Set-Location '$root'
 `$env:CLIP_GOSSIP_SEEDS = '$seedDids'
 `$env:CLIP_TRUSTED_PUBLISHERS = '$seedDids'
 `$env:CLIP_ALLOW_HTTP_LOOPBACK = 'true'
-`$env:CLIP_GOSSIP_INTERVAL = '2'
+`$env:CLIP_GOSSIP_INTERVAL = '15'
 `$env:NODE_ROLE = '$($node.Role)'
 `$env:DID_WEB_ID = '$nodeDid'
 `$env:DID_VERIFICATION_METHOD = '${nodeDid}#authority-key'
@@ -61,6 +63,14 @@ Set-Location '$root'
     Start-Process pwsh -ArgumentList "-NoProfile", "-NoExit", "-Command", $command
 }
 
-Write-Host "Launching six CLIP authorities with DID gossip on ports 8101-8106..." -ForegroundColor Cyan
-& "$PSScriptRoot\seed-network.ps1"
+Write-Host "Launching eight CLIP authorities on ports 8101-8108..." -ForegroundColor Cyan
+if ($KeepData) {
+    Write-Host "Existing data preserved; skipping seeding." -ForegroundColor Cyan
+    if (-not (Test-Path (Join-Path $dataDirectory "clip-demo-state.json"))) {
+        Write-Warning "No completed demo seed state was found. The preserved data may contain an incomplete seed."
+    }
+} else {
+    Write-Host "Large portfolio seeding may take several minutes..." -ForegroundColor Cyan
+    & "$PSScriptRoot\seed-network.ps1"
+}
 Write-Host "CLIP network / IFC graph API docs: http://127.0.0.1:8104/docs" -ForegroundColor Green

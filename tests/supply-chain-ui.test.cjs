@@ -115,6 +115,7 @@ function environment(apiOverride) {
     },
     Event: class { constructor(type) { this.type = type; } }, console,
   });
+  vm.runInContext(script.slice(script.indexOf("async function mapConcurrent"), script.indexOf("async function refresh(")), context);
   vm.runInContext(supplyScript, context);
   return { ui: context.window.clipSupplyChain, get, calls, state, listeners };
 }
@@ -138,6 +139,24 @@ test("supply workspaces are real tab panels and keep legacy views / invite contr
   assert.match(html, /value="incoming"/);
   assert.match(html, /value="changes-requested"/);
   assert.doesNotMatch(supplyScript, /privateKey|signingKey/);
+});
+
+test("large supply workspace loads immutable revisions once, never one request per record", async () => {
+  const records = Array.from({ length: 120 }, (_, index) => ({
+    ...source, id: "record-" + index, documents: [],
+  }));
+  const revisions = records.map((record) => ({ ...record, status: "issued" }));
+  const { ui, calls } = environment((path) => {
+    if (path.endsWith("/records")) return { items: records };
+    if (path.endsWith("/revisions")) return { items: revisions };
+    return { items: [] };
+  });
+  await ui.load();
+  assert.equal(ui.sc.records.length, 120);
+  assert.equal(ui.sc.revisions.length, 120);
+  assert.equal(calls.filter((call) => call.path.endsWith("/revisions")).length, 1);
+  assert.equal(calls.some((call) => /\/records\/[^/]+\/revisions/.test(call.path)), false);
+  assert.equal(calls.length, 6);
 });
 
 test("authority and version pins cannot collide across organisations", () => {

@@ -89,6 +89,19 @@ signatures or prior migration checksums. This is not an old-API compatibility
 layer. There is no automatic downgrade or conversion of pre-IFCX legacy data. SQLite is the
 tested database; PostgreSQL/rolling migration qualification remains work.
 
+File-backed SQLite databases use WAL mode and a 30-second connection busy timeout.
+Readers can coexist with a writer; short concurrent writes wait rather than
+immediately failing on a locked database. SQLite still permits only one writer
+per database, and errors beyond the timeout remain explicit. In-memory databases
+retain SQLite's memory journal. No signature, sequence or acceptance checks are
+disabled by this configuration.
+
+Restart nodes to apply these connection settings to existing databases; no
+reseeding or data migration is required. Keep active databases on local storage
+with reliable locking, not a network share or an actively synchronized folder.
+For backups, use SQLite's consistent online backup facility or stop the node
+before copying its database and any WAL sidecar; never discard a live WAL file.
+
 Import cache entries bind URI and SRI pin. A corrupt entry is evicted and fetched
 again. Expired entries are refreshed; pin mismatch fails, rather than silently
 following an updated publisher snapshot. DID key checks remain live. An offline

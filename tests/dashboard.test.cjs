@@ -370,6 +370,22 @@ test("work events flow into their subjects and are retained in asset lineage", (
   assert.deepEqual(result.lineage, ["pump", "events/check"]);
 });
 
+test("large graph initial layout wraps nodes without collisions or excessively tall columns", () => {
+  const result = evaluate(`
+    const columns=new Map([[2,[{key:'asset'}]],[-1,Array.from({length:600},(_,i)=>({key:'event-'+i}))]]);
+    const horizontal=initialEntityPositions(columns,false,900),vertical=initialEntityPositions(columns,true,400);
+    return {count:horizontal.size,unique:new Set([...horizontal.values()].map(p=>JSON.stringify(p))).size,
+      height:Math.max(...[...horizontal.values()].map(p=>p.y)),
+      source:horizontal.get('event-0'),asset:horizontal.get('asset'),
+      verticalUnique:new Set([...vertical.values()].map(p=>JSON.stringify(p))).size};
+  `);
+  assert.equal(result.count, 601);
+  assert.equal(result.unique, 601);
+  assert.equal(result.verticalUnique, 601);
+  assert.ok(result.height < 1400);
+  assert.ok(result.asset.x > result.source.x);
+});
+
 test("layout movement persists through rendering state but is isolated by scope and lineage", () => {
   const result = evaluate(`
     moveEntity('pump',210,90);moveEntity('pump',NaN,50);
@@ -480,16 +496,22 @@ for (const demoOpenAccess of [true, false]) {
     get("access").append(element("svg"));
     get("access-submit").append(element("#text"));
     const graph = { datasetId: "urn:demo" };
+    const paths = [];
+    const graphIds = [graph.datasetId, "urn:demo-2", "urn:demo-3"];
+    let activeGraphs = 0, maximumGraphs = 0;
     const responses = {
       "/clip/v1/node/info": { did: "did:web:owner.example", role: "owner", demoOpenAccess },
-      "/ifc/v1/datasets": { items: [{ datasetId: graph.datasetId }] },
-      "/ifc/v1/datasets/urn%3Ademo/graph": graph,
-      "/ifc/v1/datasets/urn%3Ademo/graph?refresh_products=true": graph,
-      "/ifc/v1/datasets/urn%3Ademo/history": { items: [] },
+      "/ifc/v1/datasets": { items: graphIds.map(datasetId => ({ datasetId })) },
       "/clip/v1/network/gossip/peers": [],
       "/clip/v1/replication/status": { replicas: [], acknowledgements: [] },
       "/clip/v1/projects": { items: [] },
     };
+    for (const datasetId of graphIds) {
+      const base = "/ifc/v1/datasets/" + encodeURIComponent(datasetId);
+      responses[base + "/graph"] = { datasetId };
+      responses[base + "/graph?refresh_products=true"] = { datasetId };
+      responses[base + "/history"] = { items: [] };
+    }
     const renderedIcons = [];
     let renders = 0;
     let refreshEvents = 0;
@@ -505,7 +527,14 @@ for (const demoOpenAccess of [true, false]) {
         },
       },
       fetch: async (path) => {
+        paths.push(path);
         assert.ok(Object.hasOwn(responses, path), `Unexpected request: ${path}`);
+        if (path.includes("/graph")) {
+          activeGraphs++;
+          maximumGraphs = Math.max(maximumGraphs, activeGraphs);
+          await new Promise(resolve => setTimeout(resolve, 2));
+          activeGraphs--;
+        }
         return { ok: true, text: async () => JSON.stringify(responses[path]) };
       },
       window: { dispatchEvent() { refreshEvents++; } },
@@ -515,15 +544,39 @@ for (const demoOpenAccess of [true, false]) {
     vm.runInContext(script.slice(0, script.indexOf("function activateView")), context);
     vm.runInContext("render = recordRender; function activateView() {}", context);
     for (let iteration = 0; iteration < 2; iteration++) {
+      maximumGraphs = 0;
       assert.equal(get("access").querySelector("i"), null);
-      assert.equal(await vm.runInContext("refresh()", context), true);
+      assert.equal(await vm.runInContext(iteration ? "refresh(true)" : "refresh()", context), true);
       assert.equal(get("refresh").disabled, false);
       assert.equal(get("notice").textContent, "");
       assert.equal(get("authority-label").title, "did:web:owner.example");
       assert.equal(vm.runInContext("state.graphs[0].datasetId", context), graph.datasetId);
+      assert.equal(maximumGraphs, iteration && demoOpenAccess ? 1 : 2);
     }
     assert.deepEqual(renderedIcons, Array(2).fill(demoOpenAccess ? "hard-drive" : "key-round"));
     assert.equal(renders, 2);
     assert.equal(refreshEvents, 2);
+    const graphs = paths.filter((path) => path.includes("/graph"));
+    assert.deepEqual(graphs, [
+      ...graphIds.map(id => "/ifc/v1/datasets/" + encodeURIComponent(id) + "/graph"),
+      ...graphIds.map(id => "/ifc/v1/datasets/" + encodeURIComponent(id) + "/graph" +
+        (demoOpenAccess ? "?refresh_products=true" : "")),
+    ]);
   });
 }
+
+test("bounded API loading preserves result order and limits concurrency", async () => {
+  const context = vm.createContext({ setTimeout });
+  vm.runInContext(script.slice(0, script.indexOf("function activateView")), context);
+  const result = await vm.runInContext(`(async()=>{
+    let active=0,maximum=0;
+    const results=await mapConcurrent([1,2,3,4,5],2,async(value)=>{
+      active++;maximum=Math.max(maximum,active);
+      await new Promise(resolve=>setTimeout(resolve,6-value));
+      active--;return value*2;
+    });
+    return JSON.stringify({results,maximum,empty:await mapConcurrent([],2,()=>{throw Error('unexpected')})});
+  })()`, context);
+  assert.deepEqual(JSON.parse(result), { results: [2,4,6,8,10], maximum: 2, empty: [] });
+  await assert.rejects(vm.runInContext("mapConcurrent([1],2,async()=>{throw Error('API failed')})", context), /API failed/);
+});

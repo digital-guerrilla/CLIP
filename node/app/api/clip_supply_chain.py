@@ -196,6 +196,18 @@ async def adoption_candidates(session: AsyncSession = Depends(get_db),
     return await service.adoption_candidates(session)
 
 
+@router.get("/revisions")
+async def owned_revisions(session: AsyncSession = Depends(get_db),
+    _: None = Depends(require_api_key)):
+    rows = (await session.execute(select(SupplyChainRevision).join(
+        SupplyChainRecord,
+        (SupplyChainRecord.authority_did == SupplyChainRevision.authority_did)
+        & (SupplyChainRecord.record_id == SupplyChainRevision.record_id),
+    ).where(SupplyChainRecord.authority_did == service.authority())
+        .order_by(SupplyChainRevision.record_id, SupplyChainRevision.revision))).scalars()
+    return {"items": [row.snapshot_json for row in rows]}
+
+
 @router.get("/records/{record_id}")
 async def get_record(record_id: str, session: AsyncSession = Depends(get_db),
     _: None = Depends(require_api_key)):

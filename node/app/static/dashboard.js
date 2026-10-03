@@ -1202,6 +1202,18 @@ function moveEntity(key, x, y) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return;
   entityLayout().positions.set(key, { x, y });
 }
+function initialEntityPositions(columns, vertical, width) {
+  const positions = new Map();
+  let offset = 0;
+  for (const [, items] of [...columns].sort(([left], [right]) => left - right)) {
+    const rows = 12;
+    items.forEach((entry, index) => positions.set(entry.key, vertical
+      ? { x: width / 2 + index % rows * 260, y: 45 + offset + Math.floor(index / rows) * 110 }
+      : { x: 115 + offset + Math.floor(index / rows) * 260, y: 45 + index % rows * 110 }));
+    offset += Math.ceil(items.length / rows) * (vertical ? 110 : 260);
+  }
+  return positions;
+}
 function showLineage(key) {
   state.lineage = key;
   state.asset = key;
@@ -1216,7 +1228,7 @@ function fitEntityNetwork() {
   const bounds = canvas.select("g").node()?.getBBox();
   if (!bounds?.width || !bounds.height) return;
   const { width, height } = canvas.node().viewBox.baseVal;
-  const scale = Math.max(0.1, Math.min(1, (width - 60) / bounds.width, (height - 60) / bounds.height));
+  const scale = Math.max(0.005, Math.min(1, (width - 60) / bounds.width, (height - 60) / bounds.height));
   canvas.call(entityZoom.transform, d3.zoomIdentity.translate((width - bounds.width * scale) / 2 - bounds.x * scale,
     (height - bounds.height * scale) / 2 - bounds.y * scale).scale(scale));
 }
@@ -1258,12 +1270,10 @@ function renderEntityNetwork() {
   const width = canvas.node().getBoundingClientRect().width || 900;
   const height = canvas.node().getBoundingClientRect().height || 320;
   const vertical = width < 600;
-  const minimumDepth = Math.min(...columns.keys());
-  for (const [depth, items] of columns)
-    items.forEach((entry, index) => {
-      if (!layout.positions.has(entry.key)) layout.positions.set(entry.key, vertical
-        ? { x: width / 2 + index * 230, y: 45 + (depth - minimumDepth) * 110 }
-        : { x: 115 + (depth - minimumDepth) * 260, y: 45 + index * 110 });
+  const initialPositions = initialEntityPositions(columns, vertical, width);
+  for (const items of columns.values())
+    items.forEach((entry) => {
+      if (!layout.positions.has(entry.key)) layout.positions.set(entry.key, initialPositions.get(entry.key));
       positions.set(entry.key, layout.positions.get(entry.key));
     });
   canvas.attr("viewBox", `0 0 ${width} ${height}`);
@@ -1272,7 +1282,7 @@ function renderEntityNetwork() {
     .attr("markerWidth", 7).attr("markerHeight", 7).attr("orient", "auto")
     .append("path").attr("d", "M0,-4L8,0L0,4").attr("fill", "context-stroke");
   const group = canvas.append("g");
-  entityZoom = d3.zoom().scaleExtent([0.1, 5]).on("zoom", (event) => {
+  entityZoom = d3.zoom().scaleExtent([0.005, 5]).on("zoom", (event) => {
     group.attr("transform", event.transform);
     layout.transform = event.transform;
   });
@@ -1754,7 +1764,18 @@ function options(id, items, valueKey, labelFn) {
   }
   if (items.some((item) => item[valueKey] === previous)) $(id).value = previous;
 }
-async function refresh() {
+async function mapConcurrent(items, limit, action) {
+  const results = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await action(items[index], index);
+    }
+  }));
+  return results;
+}
+async function refresh(refreshProducts = false) {
   const request = ++state.request;
   $("refresh").disabled = true;
   try {
@@ -1762,21 +1783,26 @@ async function refresh() {
       api("/clip/v1/node/info"),
       api("/ifc/v1/datasets"),
     ]);
-    const resolved = await Promise.allSettled(
-      catalog.items.map(async (item) => {
-        const base = "/ifc/v1/datasets/" + encodeURIComponent(item.datasetId);
-        const [graph, history] = await Promise.all([
-          api(base + "/graph" + (info.demoOpenAccess || $("key").value ? "?refresh_products=true" : "")),
-          api(base + "/history"),
-        ]);
-        return {
-          graph,
-          history: history.items.map((record) => ({
-            ...record,
-            datasetId: item.datasetId,
-          })),
-        };
-      }),
+    const updateProducts = refreshProducts && Boolean(info.demoOpenAccess || $("key").value);
+    const resolved = await mapConcurrent(
+      catalog.items, updateProducts ? 1 : 2, async (item) => {
+        try {
+          const base = "/ifc/v1/datasets/" + encodeURIComponent(item.datasetId);
+          const [graph, history] = await Promise.all([
+            api(base + "/graph" + (updateProducts ? "?refresh_products=true" : "")),
+            api(base + "/history"),
+          ]);
+          return { status: "fulfilled", value: {
+            graph,
+            history: history.items.map((record) => ({
+              ...record,
+              datasetId: item.datasetId,
+            })),
+          } };
+        } catch (reason) {
+          return { status: "rejected", reason };
+        }
+      },
     );
     if (request !== state.request) return;
     state.info = info;
@@ -1907,7 +1933,7 @@ $("scope").onchange = () => {
   render();
 };
 $("asset-search").oninput = renderAssets;
-$("refresh").onclick = refresh;
+$("refresh").onclick = () => refresh(true);
 $("open-assets").onclick = () => activateView("assets");
 $("open-activity").onclick = () => activateView("activity");
 $("sources-mode").onclick = () => networkMode(false);
@@ -2355,14 +2381,13 @@ refresh();
           status("Public catalogue only. Local authorization is required to author records, discover partner catalogues or review submissions.");
           return;
         }
-        const [records, projects, submissions] = await Promise.all([
-          api(base + "/records"), api(base + "/projects"), api(base + "/submissions"),
+        const [records, projects, submissions, revisions] = await Promise.all([
+          api(base + "/records"), api(base + "/projects"), api(base + "/submissions"), api(base + "/revisions"),
         ]);
         const owned = items(records, "Records");
-        const revisions = await Promise.all(owned.map(async (record) => items(await api(base + "/records/" + encodeURIComponent(record.id) + "/revisions"), "Record revisions")));
         if (request !== sc.request) return;
         sc.catalogue = catalogue; sc.schema = schema; sc.records = owned; sc.projects = items(projects, "Projects");
-        sc.submissions = items(submissions, "Submissions"); sc.revisions = revisions.flat();
+        sc.submissions = items(submissions, "Submissions"); sc.revisions = items(revisions, "Record revisions");
         sc.loaded = true; sc.stale = false;
         renderSupply();
         status("Updated " + new Date().toLocaleTimeString() + " / working drafts and selected immutable revisions are separate.");

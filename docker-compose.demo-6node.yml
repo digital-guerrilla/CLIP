@@ -1,10 +1,10 @@
 x-demo-environment: &demo-environment
   CLIP_DEMO_OPEN_ACCESS: "true"
   CLIP_GOSSIP_ENABLED: "true"
-  CLIP_GOSSIP_SEEDS: "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
-  CLIP_TRUSTED_PUBLISHERS: "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106"
+  CLIP_GOSSIP_SEEDS: "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106,did:web:127.0.0.1%3A8107,did:web:127.0.0.1%3A8108"
+  CLIP_TRUSTED_PUBLISHERS: "did:web:127.0.0.1%3A8101,did:web:127.0.0.1%3A8102,did:web:127.0.0.1%3A8103,did:web:127.0.0.1%3A8104,did:web:127.0.0.1%3A8105,did:web:127.0.0.1%3A8106,did:web:127.0.0.1%3A8107,did:web:127.0.0.1%3A8108"
   CLIP_ALLOW_HTTP_LOOPBACK: "true"
-  CLIP_GOSSIP_INTERVAL: "2"
+  CLIP_GOSSIP_INTERVAL: "15"
   ENCRYPTED_STORAGE_CAPACITY_BYTES: "268435456"
 
 services:
@@ -18,6 +18,8 @@ services:
       - "127.0.0.1:8104:8104"
       - "127.0.0.1:8105:8105"
       - "127.0.0.1:8106:8106"
+      - "127.0.0.1:8107:8107"
+      - "127.0.0.1:8108:8108"
     volumes: ["./examples/data:/demo"]
     environment:
       <<: *demo-environment
@@ -28,6 +30,36 @@ services:
       DATABASE_URL: "sqlite+aiosqlite:////demo/manufacturer.db"
       DOCUMENT_STORAGE_DIR: "/demo/documents/manufacturer"
       NODE_ROLE: "manufacturer"
+  supplier-2:
+    build: ./node
+    network_mode: "service:manufacturer"
+    depends_on: [manufacturer]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8107"]
+    volumes: ["./examples/data:/demo"]
+    environment:
+      <<: *demo-environment
+      NODE_API_BASE: "http://127.0.0.1:8107"
+      DID_WEB_ID: "did:web:127.0.0.1%3A8107"
+      DID_VERIFICATION_METHOD: "did:web:127.0.0.1%3A8107#authority-key"
+      PRIVATE_KEY_FILE: "/demo/supplier_2.key"
+      DATABASE_URL: "sqlite+aiosqlite:////demo/supplier_2.db"
+      DOCUMENT_STORAGE_DIR: "/demo/documents/supplier_2"
+      NODE_ROLE: "supplier"
+  supplier-3:
+    build: ./node
+    network_mode: "service:manufacturer"
+    depends_on: [manufacturer]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8108"]
+    volumes: ["./examples/data:/demo"]
+    environment:
+      <<: *demo-environment
+      NODE_API_BASE: "http://127.0.0.1:8108"
+      DID_WEB_ID: "did:web:127.0.0.1%3A8108"
+      DID_VERIFICATION_METHOD: "did:web:127.0.0.1%3A8108#authority-key"
+      PRIVATE_KEY_FILE: "/demo/supplier_3.key"
+      DATABASE_URL: "sqlite+aiosqlite:////demo/supplier_3.db"
+      DOCUMENT_STORAGE_DIR: "/demo/documents/supplier_3"
+      NODE_ROLE: "supplier"
   supplier:
     build: ./node
     network_mode: "service:manufacturer"

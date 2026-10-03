@@ -36,8 +36,7 @@ async def init_db(database_url: str) -> None:
 
     connect_args = {}
     if database_url.startswith("sqlite"):
-        # SQLite requires check_same_thread=False for async use
-        connect_args = {"check_same_thread": False}
+        connect_args = {"check_same_thread": False, "timeout": 30}
 
     _engine = create_async_engine(
         database_url,
@@ -47,6 +46,10 @@ async def init_db(database_url: str) -> None:
     _AsyncSessionLocal = async_sessionmaker(_engine, expire_on_commit=False)
 
     async with _engine.begin() as conn:
+        if database_url.startswith("sqlite"):
+            mode = (await conn.exec_driver_sql("PRAGMA journal_mode=WAL")).scalar_one()
+            if mode not in {"wal", "memory"}:
+                raise RuntimeError(f"SQLite WAL mode could not be enabled: {mode}")
         await conn.run_sync(upgrade)
 
 

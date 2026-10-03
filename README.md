@@ -22,14 +22,26 @@ pip install -r requirements.txt
 .\examples\verify-network.ps1
 ```
 
-The six authorities run on ports 8101-8106: Northstar manufacturer, supplier, main
-contractor, owner, inspector and Aster component manufacturer. Open <http://127.0.0.1:8104/ui> or
+The eight authorities run on ports 8101-8108: Northstar manufacturer (8101),
+wholesale supplier (8102), main contractor (8103), client/owner (8104), inspector
+(8105), Aster component manufacturer (8106), regional supplier (8107) and specialist
+supplier (8108). Open <http://127.0.0.1:8104/ui> or
 <http://127.0.0.1:8104/docs>. The seed includes a hierarchical North Wing IFC
 model with inherited door/pump product data, signed installation and
 commissioning history, manufacturer-to-contractor sourcing, private delivery
 documents, owner acceptance, inspector handover, a Viewer invitation, encrypted
-evidence fragments (stored by the inspector), signed replication receipts and five DID gossip peers. The
-local demo grants unauthenticated local operator access to all six nodes; keep
+evidence fragments (stored by the inspector), signed replication receipts and seven DID gossip peers.
+It also seeds a large six-facility portfolio and post-install update reviews described below;
+allow several minutes for the actual signed workflows to complete.
+The seeder displays a terminal progress bar with completed work steps, elapsed
+time and the current facility/procurement route. Percentages measure completed
+work, not estimated time; verification must finish before it reaches 100%.
+Redirected output uses periodic progress lines instead of terminal redraws.
+Seeding waits for each authority's API, not random gossip contact. Peer discovery
+converges in the background and is checked during final verification with a
+bounded two-minute wait. The eight-node demo gossips every
+15 seconds to avoid flooding its local SQLite databases during bulk authoring.
+The local demo grants unauthenticated local operator access to all eight nodes; keep
 it on loopback and never deploy the demo configuration. See the walkthrough in
 [Supply-chain workflows](docs/supply-chain-workflows.md).
 
@@ -61,6 +73,12 @@ Project graph resolution shares manufacturer product definitions by original
 authority DID and product ID across direct supply, supplier chains and nested
 components. Authorised console refreshes resolve verified published updates once
 for every reference; pinned graph views and signed issue history remain unchanged.
+Initial page loading uses the already verified manufacturer revision cache rather
+than refreshing every remote catalogue. Use **Refresh** to fetch current published
+manufacturer updates explicitly. Update-enabled graph requests are serialized to
+avoid competing cache writes; ordinary graph loads have bounded concurrency.
+Supply-chain revision histories are loaded with one authorized bulk read, not one
+request per record.
 
 The demo uses one Northstar door product identity and one P-100 pump product
 identity across its imported IFC example and North Wing Renewal. Renewal has two
@@ -76,7 +94,7 @@ keeps physical assets and delivery records separate, and labels **Contains**,
 **Type**, **Direct supply / Supply via**, **Allocated from** and **Component type**
 relationships separately. Catalogue membership is **Lists type**, not a physical
 installation. Rebuild existing demo data with a fresh `run-network.ps1` start
-(stop the six demo services first); `-KeepData` does not migrate old seed data.
+(stop all demo services first); `-KeepData` does not migrate old seed data.
 North Wing Campus, its building, storey, spaces, groups and pump assembly are
 authored once in the owner's spatial dataset. Renewal installations reference
 those exact locations by authority DID, dataset ID and entity path through
@@ -94,6 +112,51 @@ visually distinct. IFC dependency and inheritance data are not rewritten merely
 to reverse their presentation.
 Both manufacturers use the manufacturer business role, with separate databases
 and signing keys (`manufacturer` and `component_manufacturer`).
+
+### Large portfolio and updates
+
+Alongside North Wing, the seed creates **South Hospital, East Logistics Centre,
+West Research Labs, Central Library, Riverside Leisure Centre and Hilltop School**.
+Each has a campus, building, two floors and six spaces, authored once in the
+owner's spatial dataset. Its private renewal project references these locations.
+The portfolio adds **108 serialized installations and 324 signed work events**,
+giving the client an entity network of **more than 500 unique nodes**.
+
+Eight shared products cover doors, pumps, motors, valves, fans, filters, sensors
+and controllers. Northstar pumps and fans incorporate Aster motors; Aster
+controllers incorporate Aster sensors. Product identities stay shared across
+facilities, while individual installations retain their own serials and records.
+Each new facility demonstrates six routes:
+
+| Route | Installation / acceptance |
+| --- | --- |
+| Manufacturer → wholesale supplier → contractor | Contractor accepts supply, installs and hands over to client |
+| Manufacturer → regional supplier → contractor | Separate supplier and contractor installation workflow |
+| Manufacturer → specialist supplier → client | Client accepts supply and self-installs |
+| Manufacturer → wholesale supplier → regional supplier → client | Two-tier distribution, client self-installation |
+| Northstar → client | Factory-direct purchase and client self-installation |
+| Aster → client | Direct component purchase and client self-installation |
+
+Every new installation has an installation event and two inspector-authored
+inspection events. Each delivery's first asset fails its initial inspection and
+passes a remedial reinspection; the others pass both initial and periodic checks.
+These are real signed proposals accepted by the client, not decorative graph nodes.
+
+After installation, Northstar publishes additional pump service guidance and an
+updated door certificate; Aster publishes controller integration guidance.
+Open **Incoming** on each supplier to review its superseding catalogue issue.
+The regional supplier also publishes an updated pump offer (six-year warranty)
+and leaves its correction pending at the contractor. A contractor handover
+supplement remains pending at the client (South Hospital). There are **five
+delivered, undecided updates**, each linked to an already accepted baseline.
+Use the comparison/review controls to accept, reject or request changes.
+
+Published manufacturer metadata can advance the shared type on graph refresh;
+this does **not** accept a commercial handover correction or rewrite the original
+signed issue, supply allocation or installation history. Other suppliers keep
+older source pins intentionally, so different adoption stages remain visible.
+Select a facility's renewal project or right-click an asset for a readable lineage
+within the large graph. No running databases are migrated automatically.
 
 In **Assets**, drag a node to rearrange it; its connecting arrows follow.
 Every node displays a small **Data owner** label. Shared product types identify
@@ -136,9 +199,11 @@ type pairings are checked against `IFC4X3_ADD2`; this is semantic authoring into
 the pinned IFCX profile, not complete IFC4.3 STEP generation or IFC5 certification.
 Zones/groups are not physical containment parents.
 
-`run-network.ps1 -KeepData` preserves keys and databases, but seeding an already
-registered dataset returns 409. To revisit persisted state, start services
-without reseeding or use the verification script. A fresh demo start removes
+`run-network.ps1 -KeepData` preserves keys, databases and documents, and skips
+seeding. Stop the existing services first, then use this mode to apply code or
+database connection-setting changes without rebuilding the demo. If no completed
+seed state exists, the launcher warns that the preserved seed may be incomplete.
+Use the verification script to check persisted state. A fresh demo start removes
 the demo databases, SQLite sidecars, document storage and generated seed-state
 file, while retaining authority keys.
 
@@ -231,7 +296,8 @@ docker compose -f docker-compose.demo-6node.yml up --build -d
 
 The Docker demo shares a loopback network namespace and mounts `examples/data`
 for the seeder's signing keys. Stop local demo processes first; both demos use
-ports 8101-8106. Docker writes Linux-accessible files into that demo directory.
+ports 8101-8108. The Compose filename is retained for compatibility, but now starts
+eight authorities. Docker writes Linux-accessible files into that demo directory.
 
 The main Compose file is a single production-configured authority and requires
 explicit DID, verification method, HTTPS base URL and operator key environment
@@ -252,6 +318,15 @@ then tests restart, offline/rejoin, transaction replication, corrupt-cache
 recovery, evidence placement and fragment repair. It cleans up its own processes
 and temporary storage. Interoperability fixtures use separate JCS and Ed25519
 implementations; they are not an external IFCX certification.
+
+The large-demo regression starts **eight isolated authorities on dynamically
+allocated ports**, seeds the complete portfolio, checks its actual UI network
+size and identities, and verifies that update issues remain undecided:
+
+```powershell
+$env:CLIP_INTEGRATION = "1"
+.\.venv\Scripts\python.exe -m unittest tests.test_demo_graph -v
+```
 
 See [Architecture](docs/architecture.md), [Protocol](docs/instance-dependency-network.md)
 and [Roadmap](docs/roadmap.md) for semantics and remaining qualification work.

@@ -1,10 +1,11 @@
-"""Seed and verify the six-node CLIP network and IFC graph demo."""
+"""Seed and verify the eight-authority CLIP portfolio and IFC graph demo."""
 
 import argparse
 import base64
 import json
 import sys
 import time
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
@@ -38,12 +39,67 @@ NODES = {
     "owner": 8104,
     "inspector": 8105,
     "component_manufacturer": 8106,
+    "supplier_2": 8107,
+    "supplier_3": 8108,
 }
+FACILITIES = (
+    "South Hospital", "East Logistics Centre", "West Research Labs",
+    "Central Library", "Riverside Leisure Centre", "Hilltop School",
+)
+SUPPLIERS = ("supplier", "supplier_2", "supplier_3")
 DATASET_ID = "urn:owner:north-wing:v1"
 MANUFACTURER_DATASET_ID = "urn:manufacturer:door-catalog:v1"
 ASSET_PATH = "building/door-1"
 INSTALLATION_PATH = "events/installation-1001"
 PUMP_INSTALLATION_PATH = "events/commissioning-1002"
+
+class SeedProgress:
+    def __init__(self, total: int, stream=None):
+        self.total = total
+        self.completed = 0
+        self.label = "Starting"
+        self.stream = stream if stream is not None else sys.stderr
+        self.interactive = self.stream.isatty()
+        self.started = time.monotonic()
+        self.last_render = float("-inf")
+        self.line_width = 0
+
+    def update(self, label: str, *, advance: bool = False, force: bool = False) -> None:
+        self.label = label
+        if advance:
+            self.completed += 1
+        self.render(force=force)
+
+    def render(self, *, force: bool = False, outcome: str = "") -> None:
+        now = time.monotonic()
+        if not force and now - self.last_render < (0.2 if self.interactive else 10):
+            return
+        self.last_render = now
+        percent = min(99, int(self.completed * 100 / self.total))
+        if outcome == "Complete":
+            percent = 100
+        filled = percent * 24 // 100
+        elapsed = int(now - self.started)
+        line = (f"[{'#' * filled}{'-' * (24 - filled)}] {percent:3}% "
+                f"{self.completed}/{self.total} steps | {elapsed // 60:02}:{elapsed % 60:02} | "
+                f"{outcome + ': ' if outcome else ''}{self.label}")
+        if self.interactive:
+            self.stream.write("\r" + line.ljust(self.line_width))
+            self.line_width = len(line)
+            if outcome:
+                self.stream.write("\n")
+        else:
+            self.stream.write(line + "\n")
+        self.stream.flush()
+
+
+_SEED_PROGRESS: ContextVar[SeedProgress | None] = ContextVar("seed_progress", default=None)
+
+
+def seed_progress(label: str, *, advance: bool = False, force: bool = False) -> None:
+    progress = _SEED_PROGRESS.get()
+    if progress is not None:
+        progress.update(label, advance=advance, force=force)
 
 
 def peer_did(role: str) -> str:
@@ -68,6 +124,9 @@ def put(role: str, path: str, body: dict) -> dict:
 
 
 def request(role: str, method: str, path: str, body: dict | None = None) -> httpx.Response:
+    progress = _SEED_PROGRESS.get()
+    if progress is not None:
+        progress.render()
     return httpx.request(
         method,
         f"{node_url(role)}{path}",
@@ -143,12 +202,37 @@ def submit_and_accept(
     *,
     document_ids: list[str] | None = None,
 ) -> dict:
+    issued = issue_submission(sender, recipient, project_id, record, document_ids=document_ids)
+    prefix = "/clip/v1/supply-chain"
+    submission_id = issued["id"]
+    received = request(recipient, "GET", f"{prefix}/submissions/{submission_id}")
+    received.raise_for_status()
+    decision = post(recipient, f"{prefix}/submissions/{submission_id}/decision", {
+        "decision": "accept",
+        "reason": "Reviewed in the CLIP network demonstration",
+        "expectedRevision": received.json()["revision"],
+        "idempotencyKey": f"demo-decision-{uuid4()}",
+    })
+    if not decision["acceptedRecords"]:
+        raise RuntimeError(f"Submission {submission_id} produced no accepted records")
+    return {
+        "submissionId": submission_id,
+        "issue": issued["issue"],
+        "acceptedRecord": decision["acceptedRecords"][0],
+    }
+
+
+def issue_submission(
+    sender: str, recipient: str, project_id: str, record: dict,
+    *, document_ids: list[str] | None = None, supersedes: str | None = None,
+) -> dict:
     prefix = "/clip/v1/supply-chain"
     draft = post(sender, prefix + "/submissions", {
         "recipientDid": peer_did(recipient),
         "projectId": project_id,
         "recordIds": [record["id"]],
         "documentIds": document_ids or [],
+        **({"supersedes": supersedes} if supersedes else {}),
         "idempotencyKey": f"demo-{uuid4()}",
     })
     issued = post(sender, f"{prefix}/submissions/{draft['id']}/issue", {
@@ -157,21 +241,7 @@ def submit_and_accept(
     })
     if issued["deliveryStatus"] != "delivered":
         raise RuntimeError(f"Submission {draft['id']} was not delivered")
-    received = request(recipient, "GET", f"{prefix}/submissions/{draft['id']}")
-    received.raise_for_status()
-    decision = post(recipient, f"{prefix}/submissions/{draft['id']}/decision", {
-        "decision": "accept",
-        "reason": "Reviewed in the CLIP network demonstration",
-        "expectedRevision": received.json()["revision"],
-        "idempotencyKey": f"demo-decision-{uuid4()}",
-    })
-    if not decision["acceptedRecords"]:
-        raise RuntimeError(f"Submission {draft['id']} produced no accepted records")
-    return {
-        "submissionId": draft["id"],
-        "issue": issued["issue"],
-        "acceptedRecord": decision["acceptedRecords"][0],
-    }
+    return issued
 
 
 def wait_for_nodes(timeout: float = 60.0) -> None:
@@ -180,31 +250,40 @@ def wait_for_nodes(timeout: float = 60.0) -> None:
         ready = True
         for role in NODES:
             try:
-                document = httpx.get(
+                seed_progress(f"Waiting for authority API: {role} / port {NODES[role]}")
+                response = httpx.get(
                     f"{node_url(role)}/.well-known/did.json",
                     timeout=2,
-                ).json()
+                )
+                response.raise_for_status()
+                document = response.json()
                 if document.get("id") != peer_did(role):
                     ready = False
                     break
-            except (httpx.RequestError, ValueError):
+            except (httpx.HTTPError, ValueError):
                 ready = False
                 break
         if ready:
             return
         time.sleep(0.25)
-    raise TimeoutError("Six DID documents did not become available")
+    raise TimeoutError(f"{len(NODES)} DID documents did not become available")
 
 
-def wait_for_gossip(timeout: float = 45.0) -> list[dict]:
+def wait_for_gossip(timeout: float = 120.0) -> list[dict]:
     expected = {peer_did(role) for role in NODES if role != "owner"}
     deadline = time.monotonic() + timeout
     last_peers: list[dict] = []
+    seed_progress("Verifying background peer discovery", force=True)
     while time.monotonic() < deadline:
-        response = httpx.get(
-            f"{node_url('owner')}/clip/v1/network/gossip/peers",
-            timeout=3,
-        )
+        try:
+            response = httpx.get(
+                f"{node_url('owner')}/clip/v1/network/gossip/peers",
+                timeout=3,
+            )
+        except httpx.RequestError as error:
+            print(f"Waiting for initial gossip response ({type(error).__name__}): {error}", flush=True)
+            time.sleep(0.25)
+            continue
         response.raise_for_status()
         last_peers = response.json()
         known = {peer["did"] for peer in last_peers}
@@ -214,6 +293,12 @@ def wait_for_gossip(timeout: float = 45.0) -> list[dict]:
         )
         if expected.issubset(known) and manufacturer and manufacturer["status"] == "alive":
             return last_peers
+        missing = sorted(expected - known)
+        seed_progress(
+            f"Verifying gossip: {len(expected & known)}/{len(expected)} peers discovered; "
+            f"manufacturer {manufacturer['status'] if manufacturer else 'not discovered'}"
+            + (f"; missing {', '.join(missing)}" if missing else ""),
+        )
         time.sleep(0.25)
     raise TimeoutError(f"DID gossip has not converged; owner sees: {last_peers}")
 
@@ -264,11 +349,13 @@ def seed_products() -> dict[str, dict]:
         data={"manufacturer": "Northstar", "model": "NDX-90", "fireRatingMinutes": 90},
     )
     door_revision = publish_record("manufacturer", door)
+    seed_progress("Published Northstar door", advance=True)
     motor = create_record(
         "component_manufacturer", "product", "Aster Motor M-5", ifc_class="IfcElectricMotorType",
         data={"manufacturer": "Aster", "model": "M-5", "ratedPowerKw": 5.5, "voltage": "400 V"},
     )
     motor_revision = publish_record("component_manufacturer", motor)
+    seed_progress("Published Aster motor", advance=True)
     post("manufacturer", "/clip/v1/supply-chain/catalogue/discover", {
         "authorityDid": peer_did("component_manufacturer"),
     })
@@ -287,11 +374,57 @@ def seed_products() -> dict[str, dict]:
         "expectedRevision": pump["revision"],
     })
     pump["revision"] = datasheet["recordRevision"]
-    return {"door": door_revision, "pump": publish_record("manufacturer", pump), "motor": motor_revision}
+    products = {"door": door_revision, "pump": publish_record("manufacturer", pump), "motor": motor_revision}
+    seed_progress("Published Northstar pump", advance=True)
+    for name, role, label, ifc_class, data, component in (
+        ("sensor", "component_manufacturer", "Aster Temperature Sensor T-20", "IfcSensorType",
+         {"model": "T-20", "accuracyCelsius": 0.2}, None),
+        ("controller", "component_manufacturer", "Aster Controls C-10", "IfcControllerType",
+         {"model": "C-10", "protocol": "BACnet"}, "sensor"),
+        ("valve", "manufacturer", "Northstar Isolation Valve V-50", "IfcValveType",
+         {"model": "V-50", "diameterMm": 50}, None),
+        ("fan", "manufacturer", "Northstar Ventilation Fan F-200", "IfcFanType",
+         {"model": "F-200", "airflowM3h": 2400}, "motor"),
+        ("filter", "manufacturer", "Northstar Air Filter AF-7", "IfcFilterType",
+         {"model": "AF-7", "filterGrade": "ePM1 70%"}, None),
+    ):
+        if component:
+            post(role, "/clip/v1/supply-chain/catalogue/discover", {
+                "authorityDid": products[component]["authorityDid"],
+            })
+        record = create_record(
+            role, "product", label, ifc_class=ifc_class,
+            sources=[source_record(products[component], quantity=1, unit="each")] if component else [],
+            data={"manufacturer": "Aster" if role == "component_manufacturer" else "Northstar", **data},
+        )
+        products[name] = publish_record(role, record)
+        seed_progress(f"Published {label}", advance=True)
+    return products
 
 
 def seed() -> None:
+    # Completed work units, not an estimate of elapsed time.
+    progress = SeedProgress(8 + (len(SUPPLIERS) + 4) * 8 + len(FACILITIES) * 25 + 5 + 4)
+    token = _SEED_PROGRESS.set(progress)
+    try:
+        _seed()
+        if progress.completed != progress.total:
+            raise RuntimeError(f"Seed progress mismatch: {progress.completed}/{progress.total} steps")
+    except BaseException:
+        progress.render(force=True, outcome="Stopped")
+        raise
+    else:
+        progress.render(force=True, outcome="Complete")
+    finally:
+        _SEED_PROGRESS.reset(token)
+
+
+def _seed() -> None:
+    seed_progress("Waiting for authority APIs (gossip converges in the background)", force=True)
+    wait_for_nodes()
+    seed_progress("Authorities ready; publishing product catalogue", advance=True, force=True)
     products = seed_products()
+    seed_progress("Building shared spatial model and North Wing signed history", force=True)
     identities = {
         name: {
             "authorityDid": record["authorityDid"], "recordId": record["id"],
@@ -455,6 +588,7 @@ def seed() -> None:
             {"path": PUMP_INSTALLATION_PATH},
         ],
     }
+    owner_file["data"].extend(portfolio_locations())
     owner_registration = post("owner", "/ifc/v1/datasets", {
         "file": owner_file,
         "trustedProposers": [peer_did("main_contractor"), peer_did("inspector")],
@@ -567,10 +701,17 @@ def seed() -> None:
         "schemaDigest": owner_registration["schemaDigest"],
         "spatialModelDatasetId": DATASET_ID,
     }
+    seed_progress("Spatial model ready; North Wing deliveries, handovers and evidence", advance=True, force=True)
     seed_showcase(state, products)
+    seed_progress("North Wing complete; publishing supplier offers", advance=True, force=True)
+    seed_portfolio(state, products)
+    seed_progress("Publishing post-install revisions and pending updates", force=True)
+    seed_updates(state, products)
     DATA.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    seed_progress("Verifying graph identities, events and undecided updates", force=True)
     verify()
+    seed_progress("Verified all demo scenarios", advance=True, force=True)
     print("Seeded IFC assets, a multi-authority supply chain, project access, evidence, replication, and DID gossip.")
 
 
@@ -872,19 +1013,262 @@ def seed_showcase(state: dict, products: dict[str, dict]) -> None:
     })
 
 
+def portfolio_locations() -> list[dict]:
+    nodes = []
+    for index, name in enumerate(FACILITIES, 1):
+        site = f"portfolio/facility-{index}"
+        building = site + "/building"
+        nodes.extend([
+            {"path": site, "attributes": {"ifc::name": name + " Campus", SOURCE_SCHEMA: {
+                "format": "CLIP", "id": f"SITE-{index}", "class": "IfcSite", "properties": {},
+            }}, "children": {"building": building}},
+            {"path": building, "attributes": {"ifc::name": name, SOURCE_SCHEMA: {
+                "format": "CLIP", "id": f"BLDG-{index}", "class": "IfcBuilding", "properties": {},
+            }}, "children": {f"floor-{floor}": building + f"/floor-{floor}" for floor in (1, 2)}},
+        ])
+        for floor in (1, 2):
+            path = building + f"/floor-{floor}"
+            nodes.append({"path": path, "attributes": {
+                "ifc::name": f"{name} / Floor {floor}", SOURCE_SCHEMA: {
+                    "format": "CLIP", "id": f"FLOOR-{index}-{floor}",
+                    "class": "IfcBuildingStorey", "properties": {},
+                },
+            }, "children": {room: path + "/" + room for room in ("plant", "lobby", "workshop")}})
+            for room in ("plant", "lobby", "workshop"):
+                nodes.append({"path": path + "/" + room, "attributes": {
+                    "ifc::name": f"{name} / Floor {floor} / {room.title()}", SOURCE_SCHEMA: {
+                        "format": "CLIP", "id": f"SPACE-{index}-{floor}-{room}",
+                        "class": "IfcSpace", "properties": {},
+                    },
+                }})
+    return nodes
+
+
+def connect_sender(sender: str, recipient: str, project_id: str) -> None:
+    result = post(sender, "/clip/v1/supply-chain/projects/connect", {
+        "authorityDid": peer_did(recipient), "projectId": project_id,
+    })
+    if result["projectId"] != project_id or result["local"]:
+        raise RuntimeError(f"{sender} did not connect to {recipient}'s project")
+
+
+def receiving_project(role: str, name: str, senders: list[str]) -> dict:
+    project = create_project(role, name)
+    put(role, f"/clip/v1/supply-chain/projects/{quote(project['projectId'], safe='')}/senders", {
+        "expectedRevision": 0, "senders": [peer_did(sender) for sender in senders],
+    })
+    for sender in senders:
+        connect_sender(sender, role, project["projectId"])
+    return project
+
+
+def seed_portfolio(state: dict, products: dict[str, dict]) -> None:
+    offers = {}
+    direct = {}
+    for role in SUPPLIERS:
+        for publisher in ("manufacturer", "component_manufacturer"):
+            post(role, "/clip/v1/supply-chain/catalogue/discover", {"authorityDid": peer_did(publisher)})
+        offers[role] = {}
+        for key, product in products.items():
+            record = create_record(
+                role, "offering", f"{role.replace('_', ' ').title()} / {product['name']}",
+                ifc_class=product["ifcClass"], sources=[source_record(product)],
+                data={"sku": f"{role}-{key}", "warrantyYears": 3, "leadTimeDays": 7},
+            )
+            offers[role][key] = publish_record(role, record)
+            seed_progress(f"Published {role} offer: {key}", advance=True)
+    for key, product in products.items():
+        role = "manufacturer" if product["authorityDid"] == peer_did("manufacturer") else "component_manufacturer"
+        direct[key] = publish_record(role, create_record(
+            role, "offering", f"Factory Direct / {product['name']}",
+            ifc_class=product["ifcClass"], sources=[source_record(product)],
+            data={"route": "Factory direct", "warrantyYears": 2},
+        ))
+        seed_progress(f"Published factory direct offer: {key}", advance=True)
+    post("supplier_2", "/clip/v1/supply-chain/catalogue/discover", {"authorityDid": peer_did("supplier")})
+    nested = {}
+    for key, offer in offers["supplier"].items():
+        nested[key] = publish_record("supplier_2", create_record(
+            "supplier_2", "offering", f"Regional Distribution / {offer['name']}",
+            ifc_class=offer["ifcClass"], sources=[source_record(offer)],
+            data={"route": "Wholesale supplier to regional supplier", "distributionRegion": "South"},
+        ))
+        seed_progress(f"Published two-tier distribution offer: {key}", advance=True)
+    contractor_offers = {}
+    for supplier in SUPPLIERS[:2]:
+        post("main_contractor", "/clip/v1/supply-chain/catalogue/discover", {"authorityDid": peer_did(supplier)})
+        contractor_offers[supplier] = {}
+        for key, offer in offers[supplier].items():
+            contractor_offers[supplier][key] = publish_record("main_contractor", create_record(
+                "main_contractor", "offering", f"Installed Package / {offer['name']}",
+                ifc_class=offer["ifcClass"], sources=[source_record(offer)],
+                data={"installationIncluded": True, "warrantyYears": 5},
+            ))
+            seed_progress(f"Published contractor package: {supplier} / {key}", advance=True)
+    routes = (
+        ("supplier-contractor", "supplier", "main_contractor", ("door", "pump", "valve")),
+        ("regional-contractor", "supplier_2", "main_contractor", ("fan", "filter", "pump")),
+        ("supplier-client-self-install", "supplier_3", "owner", ("sensor", "controller", "door")),
+        ("two-suppliers-client-self-install", "supplier_2", "owner", ("valve", "fan", "filter")),
+        ("northstar-direct-client", "manufacturer", "owner", ("door", "pump", "valve")),
+        ("aster-direct-client", "component_manufacturer", "owner", ("motor", "sensor", "controller")),
+    )
+    portfolio = []
+    for facility_index, name in enumerate(FACILITIES, 1):
+        print(f"Seeding {name}: six procurement routes, 18 installations, 54 work events...", flush=True)
+        owner_project = receiving_project(
+            "owner", name + " Asset Renewal", ["main_contractor", *SUPPLIERS, "manufacturer", "component_manufacturer"],
+        )
+        project_id = owner_project["projectId"]
+        put("owner", f"/clip/v1/projects/{quote(project_id, safe='')}/permissions", {
+            "expectedRevision": owner_project["revision"], "visibility": "private",
+            "members": {peer_did("main_contractor"): "contributor", peer_did("inspector"): "contributor"},
+        })
+        contractor_project = receiving_project(
+            "main_contractor", name + " Installation Works", list(SUPPLIERS[:2]),
+        )["projectId"]
+        placements = []
+        event_operations = {"owner": [], "main_contractor": [], "inspector": []}
+        facility = {"name": name, "projectId": project_id, "contractorProjectId": contractor_project,
+                    "installations": [], "events": [], "deliveries": []}
+        for route_index, (route, sender, installer, keys) in enumerate(routes):
+            seed_progress(f"{name}: route {route_index + 1}/6 / {route}", force=True)
+            key = keys[(facility_index - 1) % len(keys)]
+            product = products[key]
+            offer = nested[key] if route_index == 3 else (
+                direct[key] if route_index >= 4 else offers[sender][key])
+            recipient_project = contractor_project if installer == "main_contractor" else project_id
+            serials = [f"F{facility_index}-R{route_index + 1}-{key.upper()}-{number:03}" for number in (1, 2, 3)]
+            delivery = create_record(
+                sender, "supply", f"{name} / {route} / {key} delivery",
+                ifc_class=product["ifcClass"], sources=[source_record(offer)],
+                project_id=recipient_project,
+                data={"quantity": 3, "unit": "each", "serials": serials, "batch": f"OCT26-F{facility_index}",
+                      "procurementRoute": route},
+            )
+            received = submit_and_accept(sender, installer, recipient_project, delivery)
+            seed_progress(f"{name}: route {route_index + 1}/6 delivery accepted", advance=True)
+            facility["deliveries"].append({"route": route, "sender": sender, "recipient": installer,
+                                          "submissionId": received["submissionId"],
+                                          "acceptedRecordId": received["acceptedRecord"]["id"]})
+            for number, serial in enumerate(serials, 1):
+                floor = 1 if route_index < 3 else 2
+                room = "lobby" if key == "door" else "plant" if key in ("pump", "motor", "valve", "fan") else "workshop"
+                location = f"portfolio/facility-{facility_index}/building/floor-{floor}/{room}"
+                installation = create_record(
+                    installer, "installation", f"{name} / {key.title()} / R{route_index + 1}-{number}",
+                    ifc_class=product["ifcClass"].removesuffix("Type"),
+                    sources=[source_record(received["acceptedRecord"], quantity=1, unit="each", serials=[serial])],
+                    project_id=recipient_project,
+                    data={"status": "installed", "location": f"{name} / Floor {floor} / {room}",
+                          "installerDid": peer_did(installer), "procurementRoute": route,
+                          "installedAt": "2026-10-01T09:00:00Z"},
+                )
+                handover = None
+                asset = installation
+                if installer == "main_contractor":
+                    handover = submit_and_accept("main_contractor", "owner", project_id, installation)
+                    asset = handover["acceptedRecord"]
+                placements.append((location, asset))
+                info = {"recordId": asset["id"], "graphPath": asset["graphPath"], "serial": serial,
+                        "productKey": key, "route": route, "installer": installer,
+                        "installerRecord": installation, "handoverSubmissionId": handover["submissionId"] if handover else None}
+                facility["installations"].append(info)
+                seed_progress(f"{name}: route {route_index + 1}/6 / installation {number}/3 accepted", advance=True)
+                previous = None
+                for stage in range(3):
+                    kind = "installation" if stage == 0 else "inspection"
+                    status = "failed" if stage == 1 and number == 1 else "complete"
+                    actor = installer if stage == 0 else "inspector"
+                    path = f"events/f{facility_index}-r{route_index + 1}-{number}-{stage}"
+                    label = "Installation" if stage == 0 else "Initial inspection" if stage == 1 else (
+                        "Remedial reinspection" if number == 1 else "Periodic inspection")
+                    event = {"kind": kind, "actorDid": peer_did(actor),
+                             "occurredAt": f"2026-10-0{stage + 1}T10:00:00Z", "subject": asset["graphPath"],
+                             "status": status, **({"previousEvent": previous} if previous else {})}
+                    event_operations[actor].append({"action": "create", "node": {
+                        "path": path, "attributes": {"ifc::name": f"{label} / {serial}", EVENT_SCHEMA: event},
+                    }})
+                    facility["events"].append({"path": path, "actor": actor, "status": status,
+                                               "kind": kind, "subject": asset["graphPath"]})
+                    previous = path
+        seed_progress(f"{name}: linking 18 locations and accepting 54 signed work events", force=True)
+        connect_installations(project_id, placements)
+        for actor, operations in event_operations.items():
+            commit_graph_operations(project_id, operations, actor)
+        portfolio.append(facility)
+        seed_progress(f"{name}: facility {facility_index}/{len(FACILITIES)} complete", advance=True, force=True)
+    state["portfolio"] = portfolio
+    state["portfolioProducts"] = products
+    state["portfolioOffers"] = offers
+    state["portfolioContractorOffers"] = contractor_offers
+
+
+def update_record(role: str, record: dict, *, data: dict, sources: list[dict] | None = None) -> dict:
+    return put(role, f"/clip/v1/supply-chain/records/{record['id']}", {
+        "kind": record["kind"], "name": record["name"], "ifcClass": record["ifcClass"],
+        "projectId": record["projectId"], "data": {**record["data"], **data},
+        "sources": sources if sources is not None else record["sources"],
+        "expectedRevision": record["revision"],
+    })
+
+
+def seed_updates(state: dict, products: dict[str, dict]) -> None:
+    pending = []
+    revisions = []
+    updated_products = {}
+    for key, recipient, details in (
+        ("pump", "supplier", {"maintenanceIntervalHours": 4000, "catalogueBulletin": "P100 service guidance, edition 2"}),
+        ("door", "supplier_2", {"certificationReference": "FIRE-2026-REV-B", "catalogueBulletin": "Updated fire certificate"}),
+        ("controller", "supplier_3", {"firmwareCompatibility": "3.x", "catalogueBulletin": "BACnet integration notes"}),
+    ):
+        original = products[key]
+        sender = "manufacturer" if original["authorityDid"] == peer_did("manufacturer") else "component_manufacturer"
+        project = receiving_project(recipient, f"{key.title()} Post-install Catalogue Review", [sender])["projectId"]
+        baseline = submit_and_accept(sender, recipient, project, original)
+        draft = update_record(sender, original, data=details)
+        current = publish_record(sender, draft)
+        updated_products[key] = current
+        issued = issue_submission(sender, recipient, project, current, supersedes=baseline["submissionId"])
+        pending.append({"sender": sender, "recipient": recipient, "projectId": project,
+                        "submissionId": issued["id"], "baselineId": baseline["submissionId"],
+                        "acceptedRecordId": baseline["acceptedRecord"]["id"], "recordId": original["id"]})
+        revisions.append({"key": key, "authority": sender, "recordId": original["id"],
+                          "installedRevision": original["revision"], "publishedRevision": current["revision"]})
+        seed_progress(f"Pending catalogue update delivered: {key} / {recipient}", advance=True)
+    # Advance one supplier's offer, while other suppliers deliberately keep their older pins.
+    offer = state["portfolioOffers"]["supplier_2"]["pump"]
+    project = receiving_project("main_contractor", "Regional Supplier Catalogue Update Review", ["supplier_2"])["projectId"]
+    baseline = submit_and_accept("supplier_2", "main_contractor", project, offer)
+    post("supplier_2", "/clip/v1/supply-chain/catalogue/discover", {"authorityDid": peer_did("manufacturer")})
+    updated_offer = publish_record("supplier_2", update_record(
+        "supplier_2", offer, data={"warrantyYears": 6, "catalogueBulletin": "Service bulletin included"},
+        sources=[source_record(updated_products["pump"])],
+    ))
+    issued = issue_submission("supplier_2", "main_contractor", project, updated_offer, supersedes=baseline["submissionId"])
+    pending.append({"sender": "supplier_2", "recipient": "main_contractor", "projectId": project,
+                    "submissionId": issued["id"], "baselineId": baseline["submissionId"],
+                    "acceptedRecordId": baseline["acceptedRecord"]["id"], "recordId": offer["id"]})
+    seed_progress("Pending regional supplier update delivered to contractor", advance=True)
+    facility = state["portfolio"][0]
+    asset = facility["installations"][0]
+    updated_installation = update_record("main_contractor", asset["installerRecord"], data={
+        "handoverWarrantyYears": 6, "catalogueBulletin": "Post-install handover documentation supplement",
+    })
+    issued = issue_submission(
+        "main_contractor", "owner", facility["projectId"], updated_installation,
+        supersedes=asset["handoverSubmissionId"],
+    )
+    pending.append({"sender": "main_contractor", "recipient": "owner", "projectId": facility["projectId"],
+                    "submissionId": issued["id"], "baselineId": asset["handoverSubmissionId"],
+                    "acceptedRecordId": asset["recordId"], "recordId": updated_installation["id"]})
+    state["productUpdates"] = revisions
+    state["pendingUpdates"] = pending
+    seed_progress("Pending contractor handover update delivered to client", advance=True)
+    print("Published three post-install product revisions; five delivered updates await explicit acceptance.", flush=True)
+
+
 def connect_installations(project_id: str, placements: list[tuple[str, dict]]) -> None:
-    datasets = request("owner", "GET", "/ifc/v1/datasets")
-    datasets.raise_for_status()
-    sequence = 0
-    schema_digest = None
-    for dataset in datasets.json()["items"]:
-        if dataset["datasetId"] == project_id:
-            schema_digest = dataset["schemaDigest"]
-        history = request("owner", "GET", f"/ifc/v1/datasets/{quote(dataset['datasetId'], safe='')}/history")
-        history.raise_for_status()
-        sequence = max([sequence, *[item["receipt"]["sequence"] for item in history.json()["items"]]])
-    if schema_digest is None:
-        raise RuntimeError("Installation project is missing from the owner's datasets")
     response = request("owner", "GET", f"/ifc/v1/datasets/{quote(project_id, safe='')}/graph")
     response.raise_for_status()
     graph = response.json()
@@ -897,17 +1281,38 @@ def connect_installations(project_id: str, placements: list[tuple[str, dict]]) -
         operations.append({"action": "contribute", "node": {
             "path": record["graphPath"], "attributes": {SOURCE_SCHEMA: source},
         }})
+    commit_graph_operations(project_id, operations)
+
+
+def commit_graph_operations(project_id: str, operations: list[dict], actor: str = "owner") -> None:
+    datasets = request("owner", "GET", "/ifc/v1/datasets")
+    datasets.raise_for_status()
+    sequence = 0
+    schema_digest = None
+    for dataset in datasets.json()["items"]:
+        if dataset["datasetId"] == project_id:
+            schema_digest = dataset["schemaDigest"]
+        history = request("owner", "GET", f"/ifc/v1/datasets/{quote(dataset['datasetId'], safe='')}/history")
+        history.raise_for_status()
+        sequence = max([sequence, *[item["receipt"]["sequence"] for item in history.json()["items"]]])
+    if schema_digest is None:
+        raise RuntimeError("Installation project is missing from the owner's datasets")
+    for offset in range(0, len(operations), 32):
+        sequence = commit_graph_batch(project_id, operations[offset:offset + 32], actor, sequence, schema_digest)
+
+
+def commit_graph_batch(project_id: str, operations: list[dict], actor: str, sequence: int, schema_digest: str) -> int:
     proposal = {
         "@context": ["https://w3id.org/security/data-integrity/v2", {"@vocab": "urn:clip:protocol:"}],
-        "transactionId": str(uuid4()), "actorDid": peer_did("owner"),
+        "transactionId": str(uuid4()), "actorDid": peer_did(actor),
         "target": {"authorityDid": peer_did("owner"), "datasetId": project_id},
         "operations": operations,
         "expectedSequence": sequence, "schemaDigest": schema_digest, "created": _utc_now(),
     }
     normalized = IfcGraphProposalTransaction.model_validate(
-        _sign_transaction(proposal, "owner", "assertionMethod")
+        _sign_transaction(proposal, actor, "assertionMethod")
     ).model_dump(mode="json", by_alias=True, exclude={"proof"})
-    pending = post("owner", "/ifc/v1/proposals", _sign_transaction(normalized, "owner", "assertionMethod"))
+    pending = post("owner", "/ifc/v1/proposals", _sign_transaction(normalized, actor, "assertionMethod"))
     receipt = post("owner", "/ifc/v1/decisions", _sign_transaction({
         "@context": proposal["@context"], "transactionId": str(uuid4()),
         "actorDid": peer_did("owner"), "decision": "accept",
@@ -915,14 +1320,15 @@ def connect_installations(project_id: str, placements: list[tuple[str, dict]]) -
         "expectedSequence": sequence, "created": _utc_now(),
     }, "owner", "capabilityInvocation"))
     if not receipt["accepted"]:
-        raise RuntimeError("Owner did not accept the physical installation placements")
+        raise RuntimeError(f"Owner did not accept graph contributions from {actor}")
+    return receipt["sequence"]
 
 
 def verify() -> None:
     state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
-    if "spatialModelDatasetId" not in state:
+    if "portfolio" not in state or "pendingUpdates" not in state:
         raise RuntimeError(
-            "This demo was seeded before the shared campus structure. "
+            "This demo was seeded before the large portfolio and update scenarios. "
             "Stop the demo services and run examples\\run-network.ps1 without -KeepData."
         )
     product = get_component(
@@ -1062,6 +1468,7 @@ def verify() -> None:
     ):
         raise AssertionError("Owner does not have a matching signed replication acknowledgement")
 
+    verify_portfolio(state)
     peers = wait_for_gossip()
     print(
         f"Verified IFC assets={product!r}/{pump_name!r}, "
@@ -1069,6 +1476,50 @@ def verify() -> None:
         f"inspection={accepted_asset.json()['kind']}, evidence fragments={state['evidenceFragmentCount']}, "
         f"owner-visible peers={len(peers)}."
     )
+
+
+def verify_portfolio(state: dict) -> None:
+    installations = 0
+    events = 0
+    routes = set()
+    for facility in state["portfolio"]:
+        response = request("owner", "GET", f"/ifc/v1/datasets/{quote(facility['projectId'], safe='')}/graph")
+        response.raise_for_status()
+        graph = response.json()
+        for asset in facility["installations"]:
+            entity = graph["entities"][asset["graphPath"]]
+            location = entity["components"][SOURCE_SCHEMA]["properties"]["locationReference"]
+            if location["datasetId"] != DATASET_ID or not location["entityPath"].startswith("portfolio/"):
+                raise AssertionError("Portfolio asset does not reference the shared spatial model")
+            identity = graph["entities"][entity["inherits"]["manufacturerType"]]["components"][IDENTITY_SCHEMA]
+            original = state["portfolioProducts"][asset["productKey"]]
+            if (identity["authorityDid"], identity["recordId"]) != (original["authorityDid"], original["id"]):
+                raise AssertionError("Portfolio installation lost its original product identity")
+            routes.add(asset["route"])
+            installations += 1
+        for event in facility["events"]:
+            component = graph["entities"][event["path"]]["components"][EVENT_SCHEMA]
+            if component["actorDid"] != peer_did(event["actor"]) or component["status"] != event["status"]:
+                raise AssertionError("Work event actor/status does not match its signed contribution")
+            if component["subject"] != event["subject"]:
+                raise AssertionError("Work event is not linked to the intended installation")
+            events += 1
+    if installations != 108 or events != 324 or len(routes) != 6:
+        raise AssertionError(f"Incomplete portfolio: installations={installations}, events={events}, routes={len(routes)}")
+    for update in state["pendingUpdates"]:
+        response = request(update["recipient"], "GET", f"/clip/v1/supply-chain/submissions/{update['submissionId']}")
+        response.raise_for_status()
+        submission = response.json()
+        if submission["status"] != "issued" or submission.get("decision") or submission["supersedes"] != update["baselineId"]:
+            raise AssertionError("Seeded update must await an explicit recipient decision")
+        accepted = request(update["recipient"], "GET", f"/clip/v1/supply-chain/records/{update['acceptedRecordId']}")
+        accepted.raise_for_status()
+        snapshot = accepted.json()["acceptedFrom"]["snapshot"]
+        revised = next(record for record in submission["issue"]["records"] if record["id"] == update["recordId"])
+        if snapshot["revision"] >= revised["revision"]:
+            raise AssertionError("Pending update overwrote the accepted baseline or did not advance its revision")
+    print(f"Verified portfolio: {installations} new installations, {events} work events, "
+          f"{len(routes)} procurement routes, {len(state['pendingUpdates'])} pending updates.", flush=True)
 
 
 def get_component(role: str, dataset_id: str, entity_path: str, schema_id: str):
@@ -1086,7 +1537,6 @@ def main() -> None:
     parser.add_argument("command", choices=("seed", "verify"))
     arguments = parser.parse_args()
     if arguments.command == "seed":
-        wait_for_nodes()
         seed()
     else:
         wait_for_nodes()

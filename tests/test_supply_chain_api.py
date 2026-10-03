@@ -117,6 +117,25 @@ class SupplyChainApiTest(unittest.IsolatedAsyncioTestCase):
     async def publish(self, node, value):
         return await self.call(node, "POST", f"/records/{value['id']}/publish", {"expectedRevision": value["revision"]})
 
+    async def test_bulk_revision_read_is_authorized_local_and_matches_individual_history(self):
+        product = await self.create("manufacturer", "product", "Pump")
+        await self.publish("manufacturer", product)
+        updated = await self.call("manufacturer", "PUT", f"/records/{product['id']}", {
+            "kind": "product", "name": "Pump", "ifcClass": "IfcPumpType",
+            "data": {"serviceInterval": 4000}, "sources": [], "expectedRevision": product["revision"],
+        })
+        await self.publish("manufacturer", updated)
+        second = await self.create("manufacturer", "product", "Door", ifcClass="IfcDoorType")
+        await self.call("manufacturer", "POST", f"/records/{second['id']}/revisions", {"expectedRevision": 1})
+        await self.call("manufacturer", "GET", "/revisions", status=401, auth=False)
+        bulk = await self.call("manufacturer", "GET", "/revisions")
+        individual = []
+        for record in (product, second):
+            individual.extend((await self.call("manufacturer", "GET", f"/records/{record['id']}/revisions"))["items"])
+        self.assertEqual(bulk["items"], sorted(individual, key=lambda value: (value["id"], value["revision"])))
+        await self.call("supplier", "POST", "/catalogue/discover", {"authorityDid": product["authorityDid"]})
+        self.assertEqual((await self.call("supplier", "GET", "/revisions"))["items"], [])
+
     async def project(self, node, member):
         with self.node(node):
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=settings.NODE_API_BASE,

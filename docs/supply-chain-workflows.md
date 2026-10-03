@@ -95,10 +95,26 @@ delivery quantities, serial allocations, locations and installation evidence sta
 on their separate workflow/occurrence records. Identical product types do not
 merge two physical pumps.
 
-The six-node demo includes two independent manufacturers: Northstar on port
+The eight-authority demo includes two independent manufacturers: Northstar on port
 8101 publishes the door and P-100 pump, and Aster on port 8106 publishes the M-5
 electric motor used by that pump. There is no dedicated demo relay; the inspector
 demonstrates optional encrypted evidence storage and replica placement.
+Three suppliers run on 8102 (wholesale), 8107 (regional) and 8108 (specialist).
+The client on 8104 receives contractor handovers, accepts supplier deliveries
+for self-installation and purchases directly from both manufacturers.
+Six additional facilities contain 108 serialized installations and 324 signed
+installation/inspection events, including failed inspections followed by remedial
+reinspection. Each facility has its own renewal project but shares the one owner
+spatial model and the original manufacturer product identities.
+
+After these installations, three products receive new published catalogue
+revisions. Each supplier has a delivered superseding issue awaiting review in
+**Incoming**. The contractor has a pending updated regional pump offering, and
+the client has a pending South Hospital handover supplement: five undecided
+corrections in total. Each has an accepted baseline for comparison. These updates
+add catalogue information/warranty terms rather than replacing serialized assets.
+Shared type metadata refresh and explicit acceptance of a submission are separate:
+new published data may be visible while the old signed handover remains accepted.
 
 In **Facilities & assets**, drag graph nodes to rearrange them. Right-click an
 asset (keyboard: **L** or **Shift+F10**, or use **Show lineage**) to filter to its
@@ -121,7 +137,10 @@ observed by the node. An authorised console refresh also fetches the manufacture
 signed catalogues, so every reference resolves the update together, including
 nested components. No supplier republication is required. Private working edits
 never advance the shared definition. This is pull-on-refresh, not a background
-push subscription.
+push subscription. Initial page loading uses verified revisions already known to
+the node; only an explicit **Refresh** requests new manufacturer publications.
+The console serializes update-enabled graph requests because catalogue caching
+can write to the local database.
 
 - `GET /ifc/v1/datasets/{id}/graph?refresh_products=true` verifies and caches
   newly published revisions; it requires the local operator key.
@@ -133,6 +152,10 @@ push subscription.
   publisher IDs, revisions, digests, component references and per-entity associations.
 - The SDK exposes `resolve_graph(id, refresh_products=True)` and
   `resolve_graph(id, product_view="pinned")`.
+- `GET /clip/v1/supply-chain/revisions` returns immutable revisions for locally
+  owned records in one operator-authorized read, ordered by record ID and revision.
+  Cached foreign catalogue revisions are excluded. Individual record revision
+  endpoints remain available for focused inspection.
 
 Resolved nodes are a read-only derived view, not recipient-authored manufacturer
 changes or modifications to the stored signed dataset. Original issue snapshots,
